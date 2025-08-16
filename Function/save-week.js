@@ -1,17 +1,21 @@
-const { getStore } = require('@netlify/blobs');
-
+// Save week data into Netlify Blobs (store: "weeks")
+// Accepts POST JSON:
+//   { weekKey: "2025-W33", data: { "Mon:01:job": "...", "Mon:01:pto": true, ... } }
+// Also accepts: { isoWeek, data } OR { weekStart, data }
+// Or flat Mon:DD:* keys at top level (plus weekKey/isoWeek/weekStart)
 exports.handler = async (event) => {
   try {
     if (event.httpMethod !== 'POST') {
-      return resp(405, { ok:false, error:'method-not-allowed' });
+      return j(405, { ok:false, error:'method-not-allowed' });
     }
     let body;
     try { body = JSON.parse(event.body || '{}'); }
-    catch { return resp(400, { ok:false, error:'invalid-json' }); }
+    catch { return j(400, { ok:false, error:'invalid-json' }); }
 
     const weekKey = body.weekKey || body.isoWeek || body.weekStart;
-    if (!weekKey) return resp(400, { ok:false, error:'missing-weekKey', need:'weekKey or isoWeek or weekStart' });
+    if (!weekKey) return j(400, { ok:false, error:'missing-weekKey', need:'weekKey or isoWeek or weekStart' });
 
+    // nested or flat
     let data = (body.data && typeof body.data === 'object') ? body.data : null;
     if (!data) {
       data = {};
@@ -20,21 +24,22 @@ exports.handler = async (event) => {
       }
     }
     if (!data || Object.keys(data).length === 0) {
-      return resp(400, { ok:false, error:'missing-week-data' });
+      return j(400, { ok:false, error:'missing-week-data' });
     }
 
+    // ESM import works in CJS functions when called inside the handler
+    const { getStore } = await import('@netlify/blobs');
     const store = getStore('weeks');
     await store.set(weekKey, JSON.stringify({ ok:true, data }), {
       metadata: { contentType: 'application/json' }
     });
 
-    return resp(200, { ok:true, saved:Object.keys(data).length, weekKey });
+    return j(200, { ok:true, saved:Object.keys(data).length, weekKey });
   } catch (err) {
     console.error('save-week error', err);
-    return resp(500, { ok:false, error:String(err) });
+    return j(500, { ok:false, error:String(err) });
   }
 };
-
-function resp(statusCode, body){
-  return { statusCode, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) };
+function j(statusCode, obj){
+  return { statusCode, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(obj) };
 }
