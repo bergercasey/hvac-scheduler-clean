@@ -561,16 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Optional: add buttons if you don’t already have them
-  const bar=document.querySelector('.toolbar')||document.body;
-  if(!document.getElementById('dbgSaveBtn')){
-    const b1=document.createElement('button'); b1.id='dbgSaveBtn'; b1.textContent='Save NOW'; b1.style.marginLeft='8px';
-    const b2=document.createElement('button'); b2.id='dbgLoadBtn'; b2.textContent='Load NOW'; b2.style.marginLeft='4px';
-    bar.appendChild(b1); bar.appendChild(b2);
-    b1.addEventListener('click', ()=>window.saveNow().catch(e=>log('save error',{msg:String(e)})));
-    b2.addEventListener('click', ()=>window.loadNow().catch(e=>log('load error',{msg:String(e)})));
-  }
-
   // On first paint, load current week (after grid exists)
   const wait = setInterval(()=> {
     if (document.querySelectorAll('.job-input').length>0){
