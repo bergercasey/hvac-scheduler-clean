@@ -406,6 +406,92 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 });
 </script>
+<!-- CORE save/load helpers (defines window.saveNow / window.loadNow) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const DAYS=['Mon','Tue','Wed','Thu','Fri'];
+  const pad2=n=>String(n).padStart(2,'0');
+  const log=(m,o)=> (window.addLog ? addLog(m+(o?(' '+JSON.stringify(o)):''))
+                                   : console.log('[LOG]',m,o||''));
+
+  function isoWeekKey(d=new Date()){
+    const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
+    const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));
+    const wk=Math.ceil((((x-y0)/86400000)+1)/7);
+    return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
+  }
+
+  function collectWeekFlat(){
+    const out={}, jobs=document.querySelectorAll('.job-input'),
+      helpers=document.querySelectorAll('.helper-input'),
+      crewPTO=document.querySelectorAll('.pto-box'),
+      helperPTO=document.querySelectorAll('.helper-pto-box');
+    for(let i=0;i<jobs.length;i++){
+      const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
+      if(jobs[i]?.value)        out[`${base}:job`]=jobs[i].value;
+      if(helpers[i]?.value)     out[`${base}:helper`]=helpers[i].value;
+      if(crewPTO[i]?.checked)   out[`${base}:pto`]=true;
+      if(helperPTO[i]?.checked) out[`${base}:helperPto`]=true;
+    }
+    return out;
+  }
+
+  function applyWeek(data){
+    const jobs=document.querySelectorAll('.job-input'),
+      helpers=document.querySelectorAll('.helper-input'),
+      crewPTO=document.querySelectorAll('.pto-box'),
+      helperPTO=document.querySelectorAll('.helper-pto-box');
+    Object.entries(data||{}).forEach(([k,v])=>{
+      const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
+      if(!m) return;
+      const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
+      if(m[3]==='job'&&jobs[idx]) jobs[idx].value=String(v);
+      if(m[3]==='helper'&&helpers[idx]) helpers[idx].value=String(v);
+      if(m[3]==='pto'&&crewPTO[idx]) crewPTO[idx].checked=!!v;
+      if(m[3]==='helperPto'&&helperPTO[idx]) helperPTO[idx].checked=!!v;
+    });
+  }
+
+  // Expose helpers
+  window.saveNow = async function(){
+    const weekKey = isoWeekKey();
+    const body = { weekKey, data: collectWeekFlat() };
+    const res = await fetch('/api/save-week', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(body)
+    });
+    const txt = await res.text().catch(()=> '');
+    log('save-week', { status: res.status, ok: res.ok, body: txt.slice(0,200) });
+    if(!res.ok) throw new Error('save failed '+res.status);
+  };
+
+  window.loadNow = async function(){
+    const weekKey = isoWeekKey();
+    const res = await fetch(`/api/load-week?weekKey=${encodeURIComponent(weekKey)}`);
+    const json = await res.json().catch(()=> ({}));
+    log('load-week', { status: res.status, ok: res.ok });
+    if(json && json.ok) applyWeek(json.data||{});
+    else throw new Error('load failed '+res.status);
+  };
+
+  // Optional: show HTTP in Change Log too
+  const _fetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = typeof input==='string'?input:(input?.url||'');
+    const method = (init?.method||'GET').toUpperCase();
+    if (/\/api\/(save|load)-week/.test(url)) log('HTTP →', {method,url,body:(init?.body||'').toString().slice(0,160)+'…'});
+    const res = await _fetch(input, init);
+    if (/\/api\/(save|load)-week/.test(url)) log('HTTP ←', {status:res.status, ok:res.ok, url});
+    return res;
+  };
+
+  // Auto-load once grid exists
+  const ready = () => document.querySelectorAll('.job-input').length>0;
+  const waitGrid = setInterval(()=>{ if(ready()){ clearInterval(waitGrid); window.loadNow().catch(()=>{}); } }, 150);
+});
+</script>
 
 </body>
 </html>
