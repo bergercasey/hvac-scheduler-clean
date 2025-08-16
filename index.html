@@ -1,0 +1,377 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HVAC Weekly Schedule</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; background: #fff; }
+    h1 { text-align: center; margin-bottom: 10px; }
+    .button-row { text-align: center; margin-bottom: 15px; }
+    .button-row button { margin: 0 5px; padding: 6px 10px; font-size: 14px; }
+
+    .weekday-header {
+      display: grid;
+      grid-template-columns: 150px repeat(5, 1fr);
+      text-align: center;
+      font-weight: bold;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
+    .weekday-header div { padding: 5px 0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 150px repeat(5, 1fr);
+      row-gap: 6px;
+      column-gap: 4px;
+    }
+    .crew-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-weight: bold;
+    }
+    .crew-label input { width: 90%; margin: 2px 0; }
+
+    .cell { border: 1px solid #ccc; padding: 2px; position: relative; }
+    .job-input, .helper-input {
+      width: 100%; border: none; padding: 2px; font-size: 14px; box-sizing: border-box;
+    }
+    .job-input { resize: none; } /* textarea */
+    .helper-input { color: blue; }
+
+    .pto-box, .helper-pto-box {
+      position: absolute; width: 14px; height: 14px; cursor: pointer;
+      appearance: auto; -webkit-appearance: auto;
+    }
+    .pto-box { top: 2px; right: 2px; accent-color: red; }
+    .helper-pto-box { bottom: 2px; right: 2px; accent-color: blue; }
+
+    .highlight-red { background-color: #ffd6d6; }
+
+    /* Calendar popup */
+    .calendar-popup {
+      position: absolute; top: 60px; left: 20px;
+      background: #fff; border: 1px solid #ccc; padding: 10px;
+      z-index: 999; font-size: 14px; width: 260px;
+    }
+    .calendar-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-weight: bold; margin-bottom: 5px;
+    }
+    .calendar-nav { cursor: pointer; padding: 0 10px; user-select: none; }
+    .calendar-popup table { width: 100%; border-collapse: collapse; }
+    .calendar-popup th, .calendar-popup td {
+      width: 14.2%; text-align: center; padding: 4px; cursor: pointer;
+    }
+    .calendar-popup th { font-weight: bold; }
+    .calendar-popup td:hover { background: #eee; }
+  </style>
+</head>
+<body>
+  <h1>HVAC Weekly Schedule</h1>
+  <div class="button-row">
+    <button id="calendarBtn">📅</button>
+    <button id="prevWeekBtn">Previous Week</button>
+    <button id="todayBtn">Today</button>
+    <button id="nextWeekBtn">Next Week</button>
+    <button id="resetBtn">Reset Week</button>
+    <button id="printBtn">Print</button>
+  </div>
+
+  <div class="weekday-header" id="weekdayHeader"></div>
+  <div class="grid" id="scheduleGrid"></div>
+  <div id="calendarContainer" class="calendar-popup" style="display:none;"></div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      function getStartOfWeek(date) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        d.setDate(diff);
+        d.setHours(0,0,0,0);
+        return d;
+      }
+
+      function formatDate(d) {
+        return `${d.getMonth()+1}/${d.getDate()}`;
+      }
+
+      function renderHeader(startDate) {
+        const header = document.getElementById("weekdayHeader");
+        header.innerHTML = "<div>Crew</div>";
+        for (let i = 0; i < 5; i++) {
+          const d = new Date(startDate);
+          d.setDate(startDate.getDate() + i);
+          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+          header.innerHTML += `<div>${dayName} ${formatDate(d)}</div>`;
+        }
+      }
+
+      function createGrid() {
+        const grid = document.getElementById("scheduleGrid");
+        grid.innerHTML = "";
+        for (let row = 0; row < 12; row++) {
+          const crewCell = document.createElement("div");
+          crewCell.className = "crew-label";
+          crewCell.innerHTML = `
+            <input type="text" class="lead-input" placeholder="Lead" />
+            <input type="text" class="apprentice-input" placeholder="Apprentice" />
+          `;
+          grid.appendChild(crewCell);
+
+          for (let col = 0; col < 5; col++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+
+            const job = document.createElement("textarea");
+            job.className = "job-input";
+            job.rows = 2;
+            job.placeholder = col === 0 ? "Job" : "";
+            cell.appendChild(job);
+
+            const helper = document.createElement("input");
+            helper.className = "helper-input";
+            helper.placeholder = col === 0 ? "Helper" : "";
+            cell.appendChild(helper);
+
+            const pto = document.createElement("input");
+            pto.type = "checkbox";
+            pto.className = "pto-box";
+            pto.addEventListener("change", () => {
+              if (pto.checked) cell.classList.add("highlight-red");
+              else cell.classList.remove("highlight-red");
+            });
+            cell.appendChild(pto);
+
+            const helperPto = document.createElement("input");
+            helperPto.type = "checkbox";
+            helperPto.className = "helper-pto-box";
+            helperPto.addEventListener("change", () => {}); // blue check only
+            cell.appendChild(helperPto);
+
+            grid.appendChild(cell);
+          }
+        }
+      }
+
+      // Calendar state
+      let calendarMonthOffset = 0;
+
+      function renderCalendar(referenceDate) {
+        const cal = document.getElementById("calendarContainer");
+        const ref = new Date(referenceDate);
+        ref.setMonth(ref.getMonth() + calendarMonthOffset);
+        const year = ref.getFullYear();
+        const month = ref.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+
+        const monthName = ref.toLocaleString("default", { month: "long" });
+        let html = `<div class="calendar-header">
+                      <span class="calendar-nav" id="calPrev">‹</span>
+                      <span>${monthName} ${year}</span>
+                      <span class="calendar-nav" id="calNext">›</span>
+                    </div>`;
+
+        html += "<table><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr><tr>";
+        for (let i = 0; i < firstDay.getDay(); i++) html += "<td></td>";
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+          const thisDate = new Date(year, month, d);
+          html += `<td data-ymd="${year}-${month+1}-${d}">${d}</td>`;
+          if (thisDate.getDay() === 6) html += "</tr><tr>";
+        }
+        html += "</tr></table>";
+        cal.innerHTML = html;
+
+        // Wire nav + day clicks
+        document.getElementById("calPrev").onclick = () => { calendarMonthOffset -= 1; renderCalendar(referenceDate); };
+        document.getElementById("calNext").onclick = () => { calendarMonthOffset += 1; renderCalendar(referenceDate); };
+        cal.querySelectorAll("td[data-ymd]").forEach(td => {
+          td.onclick = () => jumpToDate(td.getAttribute("data-ymd"));
+        });
+      }
+
+      window.jumpToDate = (ymd) => {
+        const [y, m, d] = ymd.split("-").map(Number);
+        const picked = new Date(y, m - 1, d);
+        currentStartDate = getStartOfWeek(picked);
+        renderHeader(currentStartDate);
+        document.getElementById("calendarContainer").style.display = "none";
+        calendarMonthOffset = 0; // reset for next open
+      };
+
+      let currentStartDate = getStartOfWeek(new Date());
+      renderHeader(currentStartDate);
+      createGrid();
+
+      // Buttons
+      document.getElementById("prevWeekBtn").onclick = () => {
+        currentStartDate.setDate(currentStartDate.getDate() - 7);
+        renderHeader(currentStartDate);
+      };
+      document.getElementById("nextWeekBtn").onclick = () => {
+        currentStartDate.setDate(currentStartDate.getDate() + 7);
+        renderHeader(currentStartDate);
+      };
+      document.getElementById("todayBtn").onclick = () => {
+        currentStartDate = getStartOfWeek(new Date());
+        renderHeader(currentStartDate);
+      };
+      document.getElementById("resetBtn").onclick = () => {
+        // Clear only current visible week's fields
+        document.querySelectorAll("#scheduleGrid input, #scheduleGrid textarea").forEach(el => {
+          if (el.type === "checkbox") el.checked = false;
+          else el.value = "";
+        });
+        document.querySelectorAll("#scheduleGrid .cell").forEach(c => c.classList.remove("highlight-red"));
+        renderHeader(currentStartDate);
+      };
+      document.getElementById("printBtn").onclick = () => window.print();
+
+      const calendarBtn = document.getElementById("calendarBtn");
+      const calendarContainer = document.getElementById("calendarContainer");
+      calendarBtn.onclick = () => {
+        const show = calendarContainer.style.display === "none";
+        calendarContainer.style.display = show ? "block" : "none";
+        if (show) renderCalendar(currentStartDate);
+      };
+    });
+  </script>
+
+<div id="bottomSection" style="display: flex; margin-top: 20px; max-width: 1000px; margin-left: auto; margin-right: auto; gap: 10px;">
+  <!-- Floaters -->
+  <div id="floatersSection" style="flex: 1; min-width: 200px;">
+    <h3 style="text-align: center; margin: 4px 0;">Floaters</h3>
+    <div style="display: flex; flex-direction: column; gap: 4px;"><div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 1" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 2" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 3" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 4" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 5" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 6" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 7" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 8" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 9" style="flex: 1; padding: 4px; font-size: 14px;"></div>
+<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 10" style="flex: 1; padding: 4px; font-size: 14px;"></div></div>
+  </div>
+  <!-- Need to be done jobs -->
+  <div id="todoSection" style="flex: 3;">
+    <h3 style="text-align: center; margin: 4px 0;">Need to be done jobs</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+      <input type="text" class="todo-job" placeholder="Job 1" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 2" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 3" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 4" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 5" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 6" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 7" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 8" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 9" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 10" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 11" style="padding: 4px; font-size: 14px;">
+<input type="text" class="todo-job" placeholder="Job 12" style="padding: 4px; font-size: 14px;">
+    </div>
+  </div>
+</div>
+
+
+<style>
+  .floater-name.assigned { background-color: #ffcccc; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.floater-check').forEach((check, idx) => {
+    check.addEventListener('change', (e) => {
+      const input = check.parentElement.querySelector('.floater-name');
+      if (check.checked) {
+        input.classList.add('assigned');
+      } else {
+        input.classList.remove('assigned');
+      }
+    });
+  });
+
+  // Helper PTO checkboxes
+  document.querySelectorAll('.helper-pto-box').forEach((check, idx) => {
+    check.addEventListener('change', () => {
+      addLog(`Helper PTO ${idx+1} set to ${check.checked}`);
+    });
+  });
+
+});
+</script>
+
+
+<div id="debugLog" style="margin-top:20px; max-height:200px; overflow-y:auto; border:1px solid #ccc; padding:6px; font-size:13px; background:#fafafa;">
+  <strong>Change Log:</strong><br>
+</div>
+
+
+<script>
+function addLog(message) {
+  const log = document.getElementById('debugLog');
+  const time = new Date().toLocaleTimeString();
+  log.innerHTML += `[${time}] ${message}<br>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Job fields
+  document.querySelectorAll('.job-input').forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      addLog(`Job cell ${idx+1}: "${input.value}"`);
+    });
+  });
+  // Helper fields
+  document.querySelectorAll('.helper-input').forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      addLog(`Helper cell ${idx+1}: "${input.value}"`);
+    });
+  });
+  // Crew Lead names
+  document.querySelectorAll('.lead-input').forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      addLog(`Crew Lead ${idx+1} changed to "${input.value}"`);
+    });
+  });
+  // Apprentice names
+  document.querySelectorAll('.apprentice-input').forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      addLog(`Apprentice ${idx+1} changed to "${input.value}"`);
+    });
+  });
+  // PTO checkboxes (grid only)
+  document.querySelectorAll('.pto-box').forEach((check, idx) => {
+    check.addEventListener('change', () => {
+      addLog(`PTO checkbox ${idx+1} set to ${check.checked}`);
+    });
+  });
+  // To-do jobs
+  document.querySelectorAll('.todo-job').forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      addLog(`To-do job ${idx+1}: "${input.value}"`);
+    });
+  });
+  // Floater names
+  document.querySelectorAll('.floater-name').forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      addLog(`Floater ${idx+1}: "${input.value}"`);
+    });
+  });
+
+  // Helper PTO checkboxes
+  document.querySelectorAll('.helper-pto-box').forEach((check, idx) => {
+    check.addEventListener('change', () => {
+      addLog(`Helper PTO ${idx+1} set to ${check.checked}`);
+    });
+  });
+
+});
+</script>
+
+</body>
+</html>
