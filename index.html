@@ -492,6 +492,94 @@ document.addEventListener('DOMContentLoaded', () => {
   const waitGrid = setInterval(()=>{ if(ready()){ clearInterval(waitGrid); window.loadNow().catch(()=>{}); } }, 150);
 });
 </script>
+<!-- FORCE FUNCTIONS PATH (bypass /api redirects) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const DAYS=['Mon','Tue','Wed','Thu','Fri'], pad2=n=>String(n).padStart(2,'0');
+  const log=(m,o)=> (window.addLog?addLog(m+(o?(' '+JSON.stringify(o)):''))
+                                  :console.log('[LOG]',m,o||''));
+
+  function isoWeekKey(d=new Date()){
+    const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
+    const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));
+    const wk=Math.ceil((((x-y0)/86400000)+1)/7);
+    return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
+  }
+  function collectWeekFlat(){
+    const out={}, jobs=document.querySelectorAll('.job-input'),
+          helpers=document.querySelectorAll('.helper-input'),
+          crewPTO=document.querySelectorAll('.pto-box'),
+          helperPTO=document.querySelectorAll('.helper-pto-box');
+    for(let i=0;i<jobs.length;i++){
+      const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
+      if(jobs[i]?.value)        out[`${base}:job`]=jobs[i].value;
+      if(helpers[i]?.value)     out[`${base}:helper`]=helpers[i].value;
+      if(crewPTO[i]?.checked)   out[`${base}:pto`]=true;
+      if(helperPTO[i]?.checked) out[`${base}:helperPto`]=true;
+    }
+    return out;
+  }
+
+  // OVERRIDE helpers to hit /.netlify/functions directly
+  window.saveNow = async function(){
+    const weekKey = isoWeekKey();
+    const res = await fetch('/.netlify/functions/save-week', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ weekKey, data: collectWeekFlat() })
+    });
+    const txt = await res.text().catch(()=> '');
+    log('save-week', { status: res.status, ok: res.ok, body: txt.slice(0,200) });
+    if(!res.ok) throw new Error('save failed '+res.status);
+  };
+
+  window.loadNow = async function(){
+    const weekKey = isoWeekKey();
+    const res = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(weekKey)}`);
+    const txt = await res.text().catch(()=> '');
+    log('load-week raw', { status:res.status, ok:res.ok, body: txt.slice(0,200) });
+    const json = res.ok ? JSON.parse(txt||'{}') : {};
+    if(json && json.ok){ 
+      // apply
+      const jobs=document.querySelectorAll('.job-input'),
+            helpers=document.querySelectorAll('.helper-input'),
+            crewPTO=document.querySelectorAll('.pto-box'),
+            helperPTO=document.querySelectorAll('.helper-pto-box');
+      Object.entries(json.data||{}).forEach(([k,v])=>{
+        const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
+        if(!m) return;
+        const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
+        if(m[3]==='job'&&jobs[idx]) jobs[idx].value=String(v);
+        if(m[3]==='helper'&&helpers[idx]) helpers[idx].value=String(v);
+        if(m[3]==='pto'&&crewPTO[idx]) crewPTO[idx].checked=!!v;
+        if(m[3]==='helperPto'&&helperPTO[idx]) helperPTO[idx].checked=!!v;
+      });
+      log('load-week applied');
+    } else {
+      throw new Error('load failed '+res.status);
+    }
+  };
+
+  // Optional: add buttons if you don’t already have them
+  const bar=document.querySelector('.toolbar')||document.body;
+  if(!document.getElementById('dbgSaveBtn')){
+    const b1=document.createElement('button'); b1.id='dbgSaveBtn'; b1.textContent='Save NOW'; b1.style.marginLeft='8px';
+    const b2=document.createElement('button'); b2.id='dbgLoadBtn'; b2.textContent='Load NOW'; b2.style.marginLeft='4px';
+    bar.appendChild(b1); bar.appendChild(b2);
+    b1.addEventListener('click', ()=>window.saveNow().catch(e=>log('save error',{msg:String(e)})));
+    b2.addEventListener('click', ()=>window.loadNow().catch(e=>log('load error',{msg:String(e)})));
+  }
+
+  // On first paint, load current week (after grid exists)
+  const wait = setInterval(()=> {
+    if (document.querySelectorAll('.job-input').length>0){
+      clearInterval(wait);
+      window.loadNow().catch(e=>log('initial load error',{msg:String(e)}));
+    }
+  }, 150);
+});
+</script>
 
 </body>
 </html>
