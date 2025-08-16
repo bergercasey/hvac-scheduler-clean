@@ -1,21 +1,15 @@
 // Save week data into Netlify Blobs (store: "weeks")
-// Accepts POST JSON:
-//   { weekKey: "2025-W33", data: { "Mon:01:job": "...", "Mon:01:pto": true, ... } }
-// Also accepts: { isoWeek, data } OR { weekStart, data }
-// Or flat Mon:DD:* keys at top level (plus weekKey/isoWeek/weekStart)
-
 exports.handler = async (event) => {
   try {
     if (event.httpMethod !== 'POST') return j(405, { ok:false, error:'method-not-allowed' });
 
-    let body;
-    try { body = JSON.parse(event.body || '{}'); }
+    let body; try { body = JSON.parse(event.body || '{}'); }
     catch { return j(400, { ok:false, error:'invalid-json' }); }
 
     const weekKey = body.weekKey || body.isoWeek || body.weekStart;
     if (!weekKey) return j(400, { ok:false, error:'missing-weekKey' });
 
-    // Use nested data or gather flat week keys from top-level
+    // nested {data:{...}} or flat Mon:DD:* keys
     let data = (body.data && typeof body.data === 'object') ? body.data : null;
     if (!data) {
       data = {};
@@ -24,13 +18,20 @@ exports.handler = async (event) => {
       }
     }
     const savedCount = Object.keys(data).length;
-    if (!savedCount) {
-      return j(400, { ok:false, error:'missing-week-data', dbg:{receivedKeys:Object.keys(body)} });
-    }
+    if (!savedCount) return j(400, { ok:false, error:'missing-week-data' });
 
-    // ESM import that works in CJS function
     const { getStore } = await import('@netlify/blobs');
-    const store = getStore('weeks');
+    let store;
+    try {
+      // Works when Blobs is enabled on the site
+      store = getStore('weeks');
+    } catch {
+      // Manual configuration via env vars
+      const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+      const token  = process.env.NETLIFY_API_TOKEN || process.env.BLOBS_TOKEN;
+      if (!siteID || !token) return j(500, { ok:false, error:'blobs-not-configured', need:['NETLIFY_SITE_ID','NETLIFY_API_TOKEN'] });
+      store = getStore({ name: 'weeks', siteID, token });
+    }
 
     await store.set(weekKey, JSON.stringify({ ok:true, data }), {
       metadata: { contentType: 'application/json' }
@@ -42,7 +43,4 @@ exports.handler = async (event) => {
     return j(500, { ok:false, error:String(err) });
   }
 };
-
-function j(status, obj){
-  return { statusCode: status, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(obj) };
-}
+function j(status, obj){ return { statusCode: status, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(obj) }; }
