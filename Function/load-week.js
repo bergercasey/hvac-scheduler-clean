@@ -1,21 +1,22 @@
-const { getStore } = require('@netlify/blobs');
-
+// Load week data from Netlify Blobs (store: "weeks")
+// GET ?weekKey= OR ?isoWeek= OR ?weekStart=
 exports.handler = async (event) => {
   try {
     const qs = event.queryStringParameters || {};
     const weekKey = qs.weekKey || qs.isoWeek || qs.weekStart;
-    if (!weekKey) return resp(400, { ok:false, error:'missing-weekKey' });
+    if (!weekKey) return j(400, { ok:false, error:'missing-weekKey' });
 
+    const { getStore } = await import('@netlify/blobs');
     const store = getStore('weeks');
     const json = await store.get(weekKey, { type: 'json' });
+
     const data = (json && json.data && typeof json.data === 'object') ? json.data : (json || {});
-    return resp(200, { ok:true, data });
+    return j(200, { ok:true, data });
   } catch (err) {
     console.error('load-week error', err);
-    return resp(500, { ok:false, error:String(err) });
+    return j(500, { ok:false, error:String(err) });
   }
 };
-
-function resp(statusCode, body){
-  return { statusCode, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) };
+function j(statusCode, obj){
+  return { statusCode, headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(obj) };
 }
