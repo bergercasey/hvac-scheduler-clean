@@ -373,6 +373,39 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script src="assets/save-load.js" defer></script>
+<!-- DEBUG: surface save/load status to the on-page Change Log -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const log = (m,o) => (window.addLog ? addLog(m + (o?(' ' + JSON.stringify(o)):''))
+                                      : console.log('[LOG]', m, o||''));
+
+  // Add "Save NOW" / "Load NOW" for testing (quietly, if toolbar exists)
+  const bar = document.querySelector('.toolbar') || document.body;
+  const saveBtn = document.createElement('button'); saveBtn.textContent = 'Save NOW';
+  const loadBtn = document.createElement('button'); loadBtn.textContent = 'Load NOW';
+  saveBtn.style.marginLeft = '8px'; loadBtn.style.marginLeft = '4px';
+  bar.appendChild(saveBtn); bar.appendChild(loadBtn);
+
+  // Wire to the helpers that assets/save-load.js exposes
+  saveBtn.addEventListener('click', async () => {
+    try { await window.saveNow(); log('save-now clicked'); } catch(e){ log('save error', {msg:String(e)}); }
+  });
+  loadBtn.addEventListener('click', async () => {
+    try { await window.loadNow(); log('load-now clicked'); } catch(e){ log('load error', {msg:String(e)}); }
+  });
+
+  // If you want to see HTTP calls too, add this tiny fetch logger:
+  const _fetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = typeof input==='string' ? input : (input?.url||'');
+    const method = (init?.method || 'GET').toUpperCase();
+    if (/\/api\/(save|load)-week/.test(url)) log('HTTP →', {method, url, body: (init?.body||'').toString().slice(0,160)+'…'});
+    const res = await _fetch(input, init);
+    if (/\/api\/(save|load)-week/.test(url)) log('HTTP ←', {status: res.status, ok: res.ok, url});
+    return res;
+  };
+});
+</script>
 
 </body>
 </html>
