@@ -306,215 +306,194 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 
-<div id="debugLog" style="margin-top:20px; max-height:200px; overflow-y:auto; border:1px solid #ccc; padding:6px; font-size:13px; background:#fafafa;">
-  <strong>Change Log:</strong><br>
-</div>
-
-
-<script>
-function addLog(message) {
-  const log = document.getElementById('debugLog');
-  const time = new Date().toLocaleTimeString();
-  log.innerHTML += `[${time}] ${message}<br>`;
-  log.scrollTop = log.scrollHeight;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Job fields
-  document.querySelectorAll('.job-input').forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      addLog(`Job cell ${idx+1}: "${input.value}"`);
-    });
-  });
-  // Helper fields
-  document.querySelectorAll('.helper-input').forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      addLog(`Helper cell ${idx+1}: "${input.value}"`);
-    });
-  });
-  // Crew Lead names
-  document.querySelectorAll('.lead-input').forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      addLog(`Crew Lead ${idx+1} changed to "${input.value}"`);
-    });
-  });
-  // Apprentice names
-  document.querySelectorAll('.apprentice-input').forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      addLog(`Apprentice ${idx+1} changed to "${input.value}"`);
-    });
-  });
-  // PTO checkboxes (grid only)
-  document.querySelectorAll('.pto-box').forEach((check, idx) => {
-    check.addEventListener('change', () => {
-      addLog(`PTO checkbox ${idx+1} set to ${check.checked}`);
-    });
-  });
-  // To-do jobs
-  document.querySelectorAll('.todo-job').forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      addLog(`To-do job ${idx+1}: "${input.value}"`);
-    });
-  });
-  // Floater names
-  document.querySelectorAll('.floater-name').forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      addLog(`Floater ${idx+1}: "${input.value}"`);
-    });
-  });
-
-  // Helper PTO checkboxes
-  document.querySelectorAll('.helper-pto-box').forEach((check, idx) => {
-    check.addEventListener('change', () => {
-      addLog(`Helper PTO ${idx+1} set to ${check.checked}`);
-    });
-  });
-
-});
-</script>
-<script src="assets/save-load.js" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  // -------- utilities --------
   const DAYS=['Mon','Tue','Wed','Thu','Fri'], pad2=n=>String(n).padStart(2,'0');
   const log=(m,o)=> (window.addLog?addLog(m+(o?(' '+JSON.stringify(o)):''))
                                   :console.log('[LOG]',m,o||''));
-  // selectors
   const Q = s => Array.from(document.querySelectorAll(s));
-  const jobSel     = '.job-input, input.job, input[data-role="job"], input[aria-label="Job"], input[placeholder="Job"]:not(.todo-job)';
-  const helperSel  = '.helper-input, input.helper, input[data-role="helper"], input[aria-label="Helper"], input[placeholder="Helper"]';
-  const ptoSel     = '.pto-box';
-  const helperPto  = '.helper-pto-box';
 
-  // persistent (do NOT clear these on reset)
+  // Grid selectors (only the weekly grid — NOT the persistent lists)
+  const jobSel    = '.job-input, input.job, input[data-role="job"], input[aria-label="Job"], input[placeholder="Job"]:not(.todo-job)';
+  const helperSel = '.helper-input, input.helper, input[data-role="helper"], input[aria-label="Helper"], input[placeholder="Helper"]';
+  const ptoSel    = '.pto-box';
+  const helperPto = '.helper-pto-box';
+
+  // Persistent selectors (DO NOT clear these on Reset)
   const leadSel    = '.lead-input';
   const apprSel    = '.apprentice-input';
   const floaterSel = '.floater-name';
   const todoSel    = '.todo-job';
 
-  function isoWeekKey(d=new Date()){
-    const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  // Week key helpers
+  function mondayOf(d){
+    const x=new Date(d); x.setHours(0,0,0,0);
+    const wd=x.getDay(); const diff=(wd===0?-6:1-wd); // to Monday
+    x.setDate(x.getDate()+diff); return x;
+  }
+  function isoWeekKeyFromDate(d){
+    const x=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
     const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));
     const wk=Math.ceil((((x-y0)/86400000)+1)/7);
     return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
   }
 
-  // --- collect ---
+  // -------- displayed week state (drives save/load/reset) --------
+  const state = {
+    monday: (() => {
+      const s = localStorage.getItem('displayedMonday');
+      return s ? new Date(s) : mondayOf(new Date());
+    })(),
+    setMonday(d){
+      this.monday = mondayOf(d);
+      localStorage.setItem('displayedMonday', this.monday.toISOString());
+      // load the chosen week
+      loadWeekFor(this.monday).catch(e=>log('load error',{msg:String(e)}));
+    },
+    weekKey(){ return isoWeekKeyFromDate(this.monday); }
+  };
+
+  // Hook your nav buttons if present
+  document.getElementById('prevWeekBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()-7); state.setMonday(d); });
+  document.getElementById('nextWeekBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()+7); state.setMonday(d); });
+  document.getElementById('todayBtn')   ?.addEventListener('click', (e)=>{ e.preventDefault(); state.setMonday(new Date()); });
+
+  // -------- collect / apply / clear --------
   function collectWeekFlat(){
-    const out={}, jobs=Q(jobSel), helpers=Q(helperSel), crew=Q(ptoSel), hpto=Q(helperPto);
-    const max = Math.max(jobs.length, helpers.length, crew.length, hpto.length);
+    const out={}, jobs=Q(jobSel), helpers=Q(helperSel), leadP=Q(ptoSel), helpP=Q(helperPto);
+    const max=Math.max(jobs.length, helpers.length, leadP.length, helpP.length);
     for(let i=0;i<max;i++){
       const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
-      if(jobs[i]   && jobs[i].value)        out[`${base}:job`] = jobs[i].value;
-      if(helpers[i]&& helpers[i].value)     out[`${base}:helper`] = helpers[i].value;
-      if(crew[i]   && crew[i].checked)      out[`${base}:pto`] = true;
-      if(hpto[i]   && hpto[i].checked)      out[`${base}:helperPto`] = true;
+      if(jobs[i]   && jobs[i].value)    out[`${base}:job`] = jobs[i].value;
+      if(helpers[i]&& helpers[i].value) out[`${base}:helper`] = helpers[i].value;
+      if(leadP[i]  && leadP[i].checked) out[`${base}:pto`] = true;
+      if(helpP[i]  && helpP[i].checked) out[`${base}:helperPto`] = true;
     }
     return out;
   }
-  function collectPersistent(){
-    const out={};
-    Q(leadSel)   .forEach((el,i)=> el.value && (out[`Lead:${pad2(i+1)}`] = el.value));
-    Q(apprSel)   .forEach((el,i)=> el.value && (out[`Apprentice:${pad2(i+1)}`] = el.value));
-    Q(floaterSel).forEach((el,i)=> el.value && (out[`Floater:${pad2(i+1)}`] = el.value));
-    Q(todoSel)   .forEach((el,i)=> el.value && (out[`Todo:${pad2(i+1)}`] = el.value));
-    return out;
+
+  function clearWeekGrid(){
+    Q(jobSel   ).forEach(el=> el.value='');
+    Q(helperSel).forEach(el=> el.value='');
+    // Uncheck and also dispatch 'change' so your red shading logic updates
+    Q(ptoSel   ).forEach(el=> { const was=el.checked; el.checked=false; if(was) el.dispatchEvent(new Event('change',{bubbles:true})); });
+    Q(helperPto).forEach(el=> { const was=el.checked; el.checked=false; if(was) el.dispatchEvent(new Event('change',{bubbles:true})); });
   }
 
-  // --- apply ---
-  function applyWeek(data){
-    const jobs=Q(jobSel), helpers=Q(helperSel), crew=Q(ptoSel), hpto=Q(helperPto);
+  // prevent autosave while we are programmatically applying values
+  let applying = false;
+  function applyWeekData(data){
+    applying = true;
+    // Start clean so old values never linger when switching weeks
+    clearWeekGrid();
+
+    const jobs=Q(jobSel), helpers=Q(helperSel), leadP=Q(ptoSel), helpP=Q(helperPto);
     Object.entries(data||{}).forEach(([k,v])=>{
       const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
       if(!m) return;
       const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
       if(m[3]==='job'      && jobs[idx])   jobs[idx].value   = String(v);
       if(m[3]==='helper'   && helpers[idx])helpers[idx].value= String(v);
-      if(m[3]==='pto'      && crew[idx])   crew[idx].checked = !!v;
-      if(m[3]==='helperPto'&& hpto[idx])   hpto[idx].checked = !!v;
+      if(m[3]==='pto'      && leadP[idx]) { leadP[idx].checked = !!v;  // fire change to restore red shading
+                                           leadP[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+      if(m[3]==='helperPto'&& helpP[idx]) { helpP[idx].checked = !!v;
+                                           helpP[idx].dispatchEvent(new Event('change',{bubbles:true})); }
     });
+    applying = false;
+  }
+
+  // Persistent data (names/lists)
+  function collectPersistent(){
+    const out={};
+    Q(leadSel).forEach((el,i)=> el.value && (out[`Lead:${pad2(i+1)}`] = el.value));
+    Q(apprSel).forEach((el,i)=> el.value && (out[`Apprentice:${pad2(i+1)}`] = el.value));
+    Q(floaterSel).forEach((el,i)=> el.value && (out[`Floater:${pad2(i+1)}`] = el.value));
+    Q(todoSel).forEach((el,i)=> el.value && (out[`Todo:${pad2(i+1)}`] = el.value));
+    return out;
   }
   function applyPersistent(data){
-    const applyList=(sel,prefix)=>{
+    const put = (sel,prefix)=>{
       const list=Q(sel);
       Object.entries(data||{}).forEach(([k,v])=>{
         const m=k.match(new RegExp(`^${prefix}:(\\d{2})$`));
         if(!m) return;
-        const idx=parseInt(m[1],10)-1; if(list[idx]) list[idx].value=String(v);
+        const idx=parseInt(m[1],10)-1; if(list[idx]) list[idx].value = String(v);
       });
     };
-    applyList(leadSel,'Lead');
-    applyList(apprSel,'Apprentice');
-    applyList(floaterSel,'Floater');
-    applyList(todoSel,'Todo');
+    put(leadSel,'Lead'); put(apprSel,'Apprentice'); put(floaterSel,'Floater'); put(todoSel,'Todo');
   }
 
-  // --- API helpers (direct to functions) ---
-  async function saveWeek(){ 
+  // -------- API (direct to functions) --------
+  async function saveWeekFor(d){
     const res = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ weekKey: isoWeekKey(), data: collectWeekFlat() })
+      body: JSON.stringify({ weekKey: isoWeekKeyFromDate(d), data: collectWeekFlat() })
     });
-    const txt = await res.text().catch(()=> ''); log('save-week', {status:res.status, ok:res.ok, body:txt.slice(0,150)});
+    const txt=await res.text().catch(()=> ''); log('save-week',{status:res.status, ok:res.ok, body:txt.slice(0,180)});
+  }
+  async function loadWeekFor(d){
+    const key = isoWeekKeyFromDate(d);
+    const res = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(key)}`);
+    const json = await res.json().catch(()=> ({}));
+    if (json && json.ok) { applyWeekData(json.data||{}); log('load-week',{status:res.status, ok:res.ok, key}); }
+    else log('load-week-failed',{status:res.status});
+  }
+  async function wipeWeek(d){
+    const res = await fetch('/.netlify/functions/save-week', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ weekKey: isoWeekKeyFromDate(d), wipe: true })
+    });
+    const txt=await res.text().catch(()=> ''); log('wipe-week',{status:res.status, ok:res.ok, body:txt.slice(0,160)});
   }
   async function savePersistent(){
     const res = await fetch('/.netlify/functions/save-persistent', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ data: collectPersistent() })
     });
-    const txt = await res.text().catch(()=> ''); log('save-persistent', {status:res.status, ok:res.ok, body:txt.slice(0,150)});
-  }
-  async function loadWeek(){
-    const res = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(isoWeekKey())}`);
-    const json = await res.json().catch(()=> ({})); log('load-week', {status:res.status, ok:res.ok});
-    if(json && json.ok) applyWeek(json.data||{});
+    const txt=await res.text().catch(()=> ''); log('save-persistent',{status:res.status, ok:res.ok, body:txt.slice(0,160)});
   }
   async function loadPersistent(){
     const res = await fetch('/.netlify/functions/load-persistent');
-    const json = await res.json().catch(()=> ({})); log('load-persistent', {status:res.status, ok:res.ok});
+    const json = await res.json().catch(()=> ({}));
     if(json && json.ok) applyPersistent(json.data||{});
+    log('load-persistent',{status:res.status, ok:res.ok});
   }
 
-  // --- AUTOSAVE (separate streams) ---
+  // -------- AUTOSAVE (separate for week vs persistent) --------
   let tWeek=null, tPersist=null;
-  const debounce=(fn,slot)=>{ clearTimeout(slot.id); slot.id=setTimeout(fn, 900); };
+  const deb = (fn,slot)=>{ clearTimeout(slot.id); slot.id=setTimeout(fn, 800); };
+
   document.addEventListener('input', (e)=>{
-    if (e.target.matches(jobSel) || e.target.matches(helperSel)) debounce(saveWeek,   tWeek={id:tWeek});
-    if (e.target.matches(leadSel)|| e.target.matches(apprSel)||
-        e.target.matches(floaterSel)|| e.target.matches(todoSel)) debounce(savePersistent, tPersist={id:tPersist});
+    if (applying) return;
+    if (e.target.matches(jobSel) || e.target.matches(helperSel)) deb(()=>saveWeekFor(state.monday), tWeek={id:tWeek});
+    if (e.target.matches(leadSel)|| e.target.matches(apprSel)|| e.target.matches(floaterSel)|| e.target.matches(todoSel))
+      deb(savePersistent, tPersist={id:tPersist});
   }, {passive:true});
+
   document.addEventListener('change', (e)=>{
-    if (e.target.matches(ptoSel) || e.target.matches(helperPto)) debounce(saveWeek, tWeek={id:tWeek});
+    if (applying) return;
+    if (e.target.matches(ptoSel) || e.target.matches(helperPto)) deb(()=>saveWeekFor(state.monday), tWeek={id:tWeek});
   }, {passive:true});
 
-  // --- RESET WEEK (grid only, then wipe on server) ---
-  async function resetWeekOnly(){
-    // clear UI grid only
-    Q(jobSel).forEach(el=> el.value='');
-    Q(helperSel).forEach(el=> el.value='');
-    Q(ptoSel).forEach(el=> el.checked=false);
-    Q(helperPto).forEach(el=> el.checked=false);
-
-    // write an empty week so refresh stays cleared
-    const res = await fetch('/.netlify/functions/save-week', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ weekKey: isoWeekKey(), wipe:true })
-    });
-    const txt = await res.text().catch(()=> '');
-    log('reset-week (wipe)', { status:res.status, ok:res.ok, body:txt.slice(0,150) });
+  // -------- RESET (current week ONLY; does not touch persistent) --------
+  async function resetCurrentWeek(){
+    clearWeekGrid();               // visually clear current grid
+    await wipeWeek(state.monday);  // write empty week for the *displayed* weekKey
   }
-
-  // Bind your existing Reset button (if it exists)
   document.getElementById('resetBtn')?.addEventListener('click', (e)=>{
-    e.preventDefault(); resetWeekOnly().catch(err=>log('reset error',{msg:String(err)}));
+    e.preventDefault(); resetCurrentWeek().catch(err=>log('reset error',{msg:String(err)}));
   });
 
-  // Expose for your toolbar/debug
-  window.saveNow = async ()=>{ await saveWeek(); await savePersistent(); };
-  window.loadNow = async ()=>{ await loadWeek(); await loadPersistent(); };
+  // Expose manual buttons if you kept them
+  window.saveNow = ()=>Promise.all([saveWeekFor(state.monday), savePersistent()]);
+  window.loadNow = ()=>Promise.all([loadWeekFor(state.monday), loadPersistent()]);
 
-  // Initial load when grid exists
-  const t=setInterval(()=>{ if (Q(jobSel).length){ clearInterval(t); window.loadNow(); } }, 150);
+  // Initial load for the week that was last displayed
+  const wait = setInterval(()=> {
+    if (Q(jobSel).length) { clearInterval(wait); loadWeekFor(state.monday).then(loadPersistent); }
+  }, 150);
 });
 </script>
 
