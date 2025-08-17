@@ -373,132 +373,26 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script src="assets/save-load.js" defer></script>
-<!-- DEBUG: surface save/load status to the on-page Change Log -->
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const log = (m,o) => (window.addLog ? addLog(m + (o?(' ' + JSON.stringify(o)):''))
-                                      : console.log('[LOG]', m, o||''));
-
-  // Add "Save NOW" / "Load NOW" for testing (quietly, if toolbar exists)
-  const bar = document.querySelector('.toolbar') || document.body;
-  const saveBtn = document.createElement('button'); saveBtn.textContent = 'Save NOW';
-  const loadBtn = document.createElement('button'); loadBtn.textContent = 'Load NOW';
-  saveBtn.style.marginLeft = '8px'; loadBtn.style.marginLeft = '4px';
-  bar.appendChild(saveBtn); bar.appendChild(loadBtn);
-
-  // Wire to the helpers that assets/save-load.js exposes
-  saveBtn.addEventListener('click', async () => {
-    try { await window.saveNow(); log('save-now clicked'); } catch(e){ log('save error', {msg:String(e)}); }
-  });
-  loadBtn.addEventListener('click', async () => {
-    try { await window.loadNow(); log('load-now clicked'); } catch(e){ log('load error', {msg:String(e)}); }
-  });
-
-  // If you want to see HTTP calls too, add this tiny fetch logger:
-  const _fetch = window.fetch.bind(window);
-  window.fetch = async (input, init) => {
-    const url = typeof input==='string' ? input : (input?.url||'');
-    const method = (init?.method || 'GET').toUpperCase();
-    if (/\/api\/(save|load)-week/.test(url)) log('HTTP →', {method, url, body: (init?.body||'').toString().slice(0,160)+'…'});
-    const res = await _fetch(input, init);
-    if (/\/api\/(save|load)-week/.test(url)) log('HTTP ←', {status: res.status, ok: res.ok, url});
-    return res;
-  };
-});
-</script>
-<!-- CORE save/load helpers (defines window.saveNow / window.loadNow) -->
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const DAYS=['Mon','Tue','Wed','Thu','Fri'];
-  const pad2=n=>String(n).padStart(2,'0');
-  const log=(m,o)=> (window.addLog ? addLog(m+(o?(' '+JSON.stringify(o)):''))
-                                   : console.log('[LOG]',m,o||''));
-
-  function isoWeekKey(d=new Date()){
-    const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
-    x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
-    const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));
-    const wk=Math.ceil((((x-y0)/86400000)+1)/7);
-    return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
-  }
-
-  function collectWeekFlat(){
-    const out={}, jobs=document.querySelectorAll('.job-input'),
-      helpers=document.querySelectorAll('.helper-input'),
-      crewPTO=document.querySelectorAll('.pto-box'),
-      helperPTO=document.querySelectorAll('.helper-pto-box');
-    for(let i=0;i<jobs.length;i++){
-      const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
-      if(jobs[i]?.value)        out[`${base}:job`]=jobs[i].value;
-      if(helpers[i]?.value)     out[`${base}:helper`]=helpers[i].value;
-      if(crewPTO[i]?.checked)   out[`${base}:pto`]=true;
-      if(helperPTO[i]?.checked) out[`${base}:helperPto`]=true;
-    }
-    return out;
-  }
-
-  function applyWeek(data){
-    const jobs=document.querySelectorAll('.job-input'),
-      helpers=document.querySelectorAll('.helper-input'),
-      crewPTO=document.querySelectorAll('.pto-box'),
-      helperPTO=document.querySelectorAll('.helper-pto-box');
-    Object.entries(data||{}).forEach(([k,v])=>{
-      const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
-      if(!m) return;
-      const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
-      if(m[3]==='job'&&jobs[idx]) jobs[idx].value=String(v);
-      if(m[3]==='helper'&&helpers[idx]) helpers[idx].value=String(v);
-      if(m[3]==='pto'&&crewPTO[idx]) crewPTO[idx].checked=!!v;
-      if(m[3]==='helperPto'&&helperPTO[idx]) helperPTO[idx].checked=!!v;
-    });
-  }
-
-  // Expose helpers
-  window.saveNow = async function(){
-    const weekKey = isoWeekKey();
-    const body = { weekKey, data: collectWeekFlat() };
-    const res = await fetch('/api/save-week', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(body)
-    });
-    const txt = await res.text().catch(()=> '');
-    log('save-week', { status: res.status, ok: res.ok, body: txt.slice(0,200) });
-    if(!res.ok) throw new Error('save failed '+res.status);
-  };
-
-  window.loadNow = async function(){
-    const weekKey = isoWeekKey();
-    const res = await fetch(`/api/load-week?weekKey=${encodeURIComponent(weekKey)}`);
-    const json = await res.json().catch(()=> ({}));
-    log('load-week', { status: res.status, ok: res.ok });
-    if(json && json.ok) applyWeek(json.data||{});
-    else throw new Error('load failed '+res.status);
-  };
-
-  // Optional: show HTTP in Change Log too
-  const _fetch = window.fetch.bind(window);
-  window.fetch = async (input, init) => {
-    const url = typeof input==='string'?input:(input?.url||'');
-    const method = (init?.method||'GET').toUpperCase();
-    if (/\/api\/(save|load)-week/.test(url)) log('HTTP →', {method,url,body:(init?.body||'').toString().slice(0,160)+'…'});
-    const res = await _fetch(input, init);
-    if (/\/api\/(save|load)-week/.test(url)) log('HTTP ←', {status:res.status, ok:res.ok, url});
-    return res;
-  };
-
-  // Auto-load once grid exists
-  const ready = () => document.querySelectorAll('.job-input').length>0;
-  const waitGrid = setInterval(()=>{ if(ready()){ clearInterval(waitGrid); window.loadNow().catch(()=>{}); } }, 150);
-});
-</script>
-<!-- FORCE FUNCTIONS PATH (bypass /api redirects) -->
+<!-- SINGLE DEBUG/HELPER BLOCK (weekly + persistent) -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const DAYS=['Mon','Tue','Wed','Thu','Fri'], pad2=n=>String(n).padStart(2,'0');
   const log=(m,o)=> (window.addLog?addLog(m+(o?(' '+JSON.stringify(o)):''))
                                   :console.log('[LOG]',m,o||''));
 
+  // --- selectors (robust fallbacks) ---
+  const Q = sel => Array.from(document.querySelectorAll(sel));
+  const jobSel     = '.job-input, input.job, input[data-role="job"], input[aria-label="Job"], input[placeholder="Job"]:not(.todo-job)';
+  const helperSel  = '.helper-input, input.helper, input[data-role="helper"], input[aria-label="Helper"], input[placeholder="Helper"]';
+  const ptoSel     = '.pto-box';
+  const helperPto  = '.helper-pto-box';
+
+  // persistent lists
+  const leadSel       = '.lead-input';
+  const apprSel       = '.apprentice-input';
+  const floaterSel    = '.floater-name';
+  const todoSel       = '.todo-job';
+
   function isoWeekKey(d=new Date()){
     const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
     x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
@@ -506,68 +400,125 @@ document.addEventListener('DOMContentLoaded', () => {
     const wk=Math.ceil((((x-y0)/86400000)+1)/7);
     return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
   }
+
+  // --- collect weekly grid ---
   function collectWeekFlat(){
-    const out={}, jobs=document.querySelectorAll('.job-input'),
-          helpers=document.querySelectorAll('.helper-input'),
-          crewPTO=document.querySelectorAll('.pto-box'),
-          helperPTO=document.querySelectorAll('.helper-pto-box');
-    for(let i=0;i<jobs.length;i++){
+    const out={}, jobs=Q(jobSel), helpers=Q(helperSel), crew=Q(ptoSel), hpto=Q(helperPto);
+    const count = Math.max(jobs.length, helpers.length, crew.length, hpto.length);
+    for(let i=0;i<count;i++){
       const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
-      if(jobs[i]?.value)        out[`${base}:job`]=jobs[i].value;
-      if(helpers[i]?.value)     out[`${base}:helper`]=helpers[i].value;
-      if(crewPTO[i]?.checked)   out[`${base}:pto`]=true;
-      if(helperPTO[i]?.checked) out[`${base}:helperPto`]=true;
+      if(jobs[i]   && jobs[i].value)        out[`${base}:job`] = jobs[i].value;
+      if(helpers[i]&& helpers[i].value)     out[`${base}:helper`] = helpers[i].value;
+      if(crew[i]   && crew[i].checked)      out[`${base}:pto`] = true;
+      if(hpto[i]   && hpto[i].checked)      out[`${base}:helperPto`] = true;
     }
     return out;
   }
 
-  // OVERRIDE helpers to hit /.netlify/functions directly
-  window.saveNow = async function(){
-    const weekKey = isoWeekKey();
+  // --- collect persistent lists ---
+  function collectPersistent(){
+    const out = {};
+    Q(leadSel)   .forEach((el,i)=> el.value && (out[`Lead:${pad2(i+1)}`] = el.value));
+    Q(apprSel)   .forEach((el,i)=> el.value && (out[`Apprentice:${pad2(i+1)}`] = el.value));
+    Q(floaterSel).forEach((el,i)=> el.value && (out[`Floater:${pad2(i+1)}`] = el.value));
+    Q(todoSel)   .forEach((el,i)=> el.value && (out[`Todo:${pad2(i+1)}`] = el.value));
+    return out;
+  }
+
+  // --- apply to grid ---
+  function applyWeek(data){
+    const jobs=Q(jobSel), helpers=Q(helperSel), crew=Q(ptoSel), hpto=Q(helperPto);
+    Object.entries(data||{}).forEach(([k,v])=>{
+      const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
+      if(!m) return;
+      const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
+      if(m[3]==='job'      && jobs[idx])   jobs[idx].value = String(v);
+      if(m[3]==='helper'   && helpers[idx])helpers[idx].value = String(v);
+      if(m[3]==='pto'      && crew[idx])   crew[idx].checked = !!v;
+      if(m[3]==='helperPto'&& hpto[idx])   hpto[idx].checked = !!v;
+    });
+  }
+  function applyPersistent(data){
+    const applyList = (sel,prefix) => {
+      const list=Q(sel);
+      Object.entries(data||{}).forEach(([k,v])=>{
+        const m=k.match(new RegExp(`^${prefix}:(\\d{2})$`));
+        if(!m) return;
+        const idx=parseInt(m[1],10)-1; if(list[idx]) list[idx].value = String(v);
+      });
+    };
+    applyList(leadSel,'Lead');
+    applyList(apprSel,'Apprentice');
+    applyList(floaterSel,'Floater');
+    applyList(todoSel,'Todo');
+  }
+
+  // --- endpoints (direct to functions) ---
+  async function saveWeek(){
     const res = await fetch('/.netlify/functions/save-week', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ weekKey, data: collectWeekFlat() })
+      body: JSON.stringify({ weekKey: isoWeekKey(), data: collectWeekFlat() })
     });
     const txt = await res.text().catch(()=> '');
-    log('save-week', { status: res.status, ok: res.ok, body: txt.slice(0,200) });
-    if(!res.ok) throw new Error('save failed '+res.status);
-  };
-
-  window.loadNow = async function(){
-    const weekKey = isoWeekKey();
-    const res = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(weekKey)}`);
+    log('save-week', { status:res.status, ok:res.ok, body:txt.slice(0,160) });
+    if(!res.ok) throw new Error('save-week failed '+res.status);
+  }
+  async function savePersistent(){
+    const res = await fetch('/.netlify/functions/save-persistent', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ data: collectPersistent() })
+    });
     const txt = await res.text().catch(()=> '');
-    log('load-week raw', { status:res.status, ok:res.ok, body: txt.slice(0,200) });
-    const json = res.ok ? JSON.parse(txt||'{}') : {};
-    if(json && json.ok){ 
-      // apply
-      const jobs=document.querySelectorAll('.job-input'),
-            helpers=document.querySelectorAll('.helper-input'),
-            crewPTO=document.querySelectorAll('.pto-box'),
-            helperPTO=document.querySelectorAll('.helper-pto-box');
-      Object.entries(json.data||{}).forEach(([k,v])=>{
-        const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
-        if(!m) return;
-        const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
-        if(m[3]==='job'&&jobs[idx]) jobs[idx].value=String(v);
-        if(m[3]==='helper'&&helpers[idx]) helpers[idx].value=String(v);
-        if(m[3]==='pto'&&crewPTO[idx]) crewPTO[idx].checked=!!v;
-        if(m[3]==='helperPto'&&helperPTO[idx]) helperPTO[idx].checked=!!v;
-      });
-      log('load-week applied');
-    } else {
-      throw new Error('load failed '+res.status);
-    }
-  };
+    log('save-persistent', { status:res.status, ok:res.ok, body:txt.slice(0,160) });
+  }
+  async function loadWeek(){
+    const res = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(isoWeekKey())}`);
+    const json = await res.json().catch(()=> ({}));
+    log('load-week', { status:res.status, ok:res.ok });
+    if(json && json.ok) applyWeek(json.data||{});
+  }
+  async function loadPersistent(){
+    const res = await fetch('/.netlify/functions/load-persistent');
+    const json = await res.json().catch(()=> ({}));
+    log('load-persistent', { status:res.status, ok:res.ok });
+    if(json && json.ok) applyPersistent(json.data||{});
+  }
 
-  // On first paint, load current week (after grid exists)
-  const wait = setInterval(()=> {
-    if (document.querySelectorAll('.job-input').length>0){
-      clearInterval(wait);
-      window.loadNow().catch(e=>log('initial load error',{msg:String(e)}));
-    }
-  }, 150);
+  // expose for buttons
+  window.saveNow = async ()=>{ await saveWeek(); await savePersistent(); };
+  window.loadNow = async ()=>{ await loadWeek(); await loadPersistent(); };
+
+  // Buttons (single set)
+  if (!document.getElementById('dbg-tools')) {
+    const bar=document.querySelector('.toolbar')||document.body;
+    const wrap=document.createElement('span'); wrap.id='dbg-tools'; wrap.style.marginLeft='8px';
+    const b1=document.createElement('button'); b1.textContent='Save NOW';
+    const b2=document.createElement('button'); b2.textContent='Load NOW'; b2.style.marginLeft='4px';
+    wrap.appendChild(b1); wrap.appendChild(b2); bar.appendChild(wrap);
+    b1.addEventListener('click', ()=>window.saveNow());
+    b2.addEventListener('click', ()=>window.loadNow());
+  }
+
+  // show HTTPs in log once
+  if (!window._fetchPatched) {
+    const _fetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url=typeof input==='string'?input:(input?.url||'');
+      const method=(init?.method||'GET').toUpperCase();
+      if (/\.netlify\/functions\/(save|load)/.test(url)) log('HTTP →', {method,url});
+      const res=await _fetch(input, init);
+      if (/\.netlify\/functions\/(save|load)/.test(url)) log('HTTP ←', {status:res.status, ok:res.ok, url});
+      return res;
+    };
+    window._fetchPatched = true;
+  }
+
+  // Load once grid exists
+  const t=setInterval(()=>{ if (document.querySelectorAll(jobSel).length){
+    clearInterval(t); window.loadNow();
+  }}, 150);
 });
 </script>
 
