@@ -501,6 +501,87 @@ document.addEventListener('DOMContentLoaded', () => {
   window.loadNow = ()=>Promise.all([loadWeekFor(state.monday), loadPersistent()]);
 });
 </script>
+<!-- CALENDAR → WEEK BRIDGE (drop-in) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // --- week helpers (standalone) ---
+  function mondayOf(d){ const x=new Date(d); x.setHours(0,0,0,0); const wd=x.getDay(); const diff=(wd===0?-6:1-wd); x.setDate(x.getDate()+diff); return x; }
+  function isoWeekKeyFromDate(d){
+    const x=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
+    const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));
+    const wk=Math.ceil((((x-y0)/86400000)+1)/7);
+    return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
+  }
+  const DAYS=['Mon','Tue','Wed','Thu','Fri'], pad2=n=>String(n).padStart(2,'0');
+  const jobSel    = '.job-input, input.job, input[data-role="job"], input[aria-label="Job"], input[placeholder="Job"]:not(.todo-job)';
+  const helperSel = '.helper-input, input.helper, input[data-role="helper"], input[aria-label="Helper"], input[placeholder="Helper"]';
+  const ptoSel    = '.pto-box';
+  const helperPto = '.helper-pto-box';
+  const Q = s => Array.from(document.querySelectorAll(s));
+  const log=(m,o)=> (window.addLog?addLog(m+(o?(' '+JSON.stringify(o)):''))
+                                   :console.log('[CAL]',m,o||''));
+
+  function clearWeekGrid(){
+    Q(jobSel).forEach(el=> el.value='');
+    Q(helperSel).forEach(el=> el.value='');
+    Q(ptoSel).forEach(el=>{ const was=el.checked; el.checked=false; if(was) el.dispatchEvent(new Event('change',{bubbles:true})); });
+    Q(helperPto).forEach(el=>{ const was=el.checked; el.checked=false; if(was) el.dispatchEvent(new Event('change',{bubbles:true})); });
+  }
+  function applyWeekData(data){
+    const jobs=Q(jobSel), helpers=Q(helperSel), leadP=Q(ptoSel), helpP=Q(helperPto);
+    Object.entries(data||{}).forEach(([k,v])=>{
+      const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/);
+      if(!m) return;
+      const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
+      if(m[3]==='job'      && jobs[idx])   jobs[idx].value   = String(v);
+      if(m[3]==='helper'   && helpers[idx])helpers[idx].value= String(v);
+      if(m[3]==='pto'      && leadP[idx]) { leadP[idx].checked = !!v;  leadP[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+      if(m[3]==='helperPto'&& helpP[idx]) { helpP[idx].checked = !!v;  helpP[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+    });
+  }
+
+  async function loadWeekFor(dateLike){
+    const monday = mondayOf(dateLike);
+    const key = isoWeekKeyFromDate(monday);
+    localStorage.setItem('displayedMonday', monday.toISOString()); // remember which week is shown
+    clearWeekGrid(); // start clean so no leftovers
+    const res = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(key)}`);
+    if (!res.ok) { log('load-week fail', {status:res.status}); return; }
+    const json = await res.json().catch(()=> ({}));
+    if (json && json.ok) { applyWeekData(json.data||{}); log('loaded', {key}); }
+  }
+
+  // ===> EXPOSED API FOR YOUR CALENDAR <===
+  window.hvacSetWeek = function(input){
+    const d = input instanceof Date ? input : new Date(input); // accepts "YYYY-MM-DD" or Date
+    loadWeekFor(d).catch(e=>log('hvacSetWeek error', {msg:String(e)}));
+  };
+
+  // Optional: wire common calendar UIs automatically
+  const datePicker = document.getElementById('calendar') || document.getElementById('weekPicker');
+  if (datePicker) {
+    datePicker.addEventListener('change', e => window.hvacSetWeek(e.target.value));
+    // keep picker in sync with currently displayed Monday, if stored
+    try {
+      const shown = localStorage.getItem('displayedMonday');
+      if (shown) {
+        const x = mondayOf(new Date(shown));
+        const m = String(x.getMonth()+1).padStart(2,'0'), dd=String(x.getDate()).padStart(2,'0');
+        datePicker.value = `${x.getFullYear()}-${m}-${dd}`;
+      }
+    } catch {}
+  }
+
+  // Optional: clickable calendar cells like <div class="cal-day" data-date="2025-08-18">
+  document.addEventListener('click', (e) => {
+    const cell = e.target.closest('[data-date]');
+    if (!cell) return;
+    const iso = cell.getAttribute('data-date');
+    if (iso) window.hvacSetWeek(iso);
+  });
+});
+</script>
 
 </body>
 </html>
