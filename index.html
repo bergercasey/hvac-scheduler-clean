@@ -83,7 +83,7 @@
   </div>
 
   <div class="weekday-header" id="weekdayHeader"></div>
-  <div class="grid" id="scheduleGrid"></div>
+ <div class="grid" id="week-grid">
   <div id="calendarContainer" class="calendar-popup" style="display:none;"></div>
 
   <script>
@@ -118,6 +118,7 @@
         for (let row = 0; row < 12; row++) {
           const crewCell = document.createElement("div");
           crewCell.className = "crew-label";
+          crewCell.setAttribute("data-persistent", "1");
           crewCell.innerHTML = `
             <input type="text" class="lead-input" placeholder="Lead" />
             <input type="text" class="apprentice-input" placeholder="Apprentice" />
@@ -196,41 +197,45 @@
         });
       }
 
-      window.jumpToDate = (ymd) => {
-        const [y, m, d] = ymd.split("-").map(Number);
-        const picked = new Date(y, m - 1, d);
-        currentStartDate = getStartOfWeek(picked);
-        renderHeader(currentStartDate);
-        document.getElementById("calendarContainer").style.display = "none";
-        calendarMonthOffset = 0; // reset for next open
-      };
+    window.jumpToDate = (ymd) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const picked = new Date(y, m - 1, d);
+  switchToWeek(picked);                  // <- unified path
+  document.getElementById("calendarContainer").style.display = "none";
+  calendarMonthOffset = 0;
+};
 
       let currentStartDate = getStartOfWeek(new Date());
       renderHeader(currentStartDate);
       createGrid();
+function switchToWeek(dateLike){
+  const d = new Date(dateLike);
+  currentStartDate = getStartOfWeek(d);
+  renderHeader(currentStartDate);
+  // If a saver/loader script is present, let it know we changed weeks
+  if (window.hvacSetWeek) hvacSetWeek(currentStartDate);
+}
 
       // Buttons
-      document.getElementById("prevWeekBtn").onclick = () => {
-        currentStartDate.setDate(currentStartDate.getDate() - 7);
-        renderHeader(currentStartDate);
-      };
-      document.getElementById("nextWeekBtn").onclick = () => {
-        currentStartDate.setDate(currentStartDate.getDate() + 7);
-        renderHeader(currentStartDate);
-      };
-      document.getElementById("todayBtn").onclick = () => {
-        currentStartDate = getStartOfWeek(new Date());
-        renderHeader(currentStartDate);
-      };
-      document.getElementById("resetBtn").onclick = () => {
-        // Clear only current visible week's fields
-        document.querySelectorAll("#scheduleGrid input, #scheduleGrid textarea").forEach(el => {
-          if (el.type === "checkbox") el.checked = false;
-          else el.value = "";
-        });
-        document.querySelectorAll("#scheduleGrid .cell").forEach(c => c.classList.remove("highlight-red"));
-        renderHeader(currentStartDate);
-      };
+    document.getElementById("prevWeekBtn").onclick = () =>
+  switchToWeek(new Date(currentStartDate.getTime() - 7*24*60*60*1000));
+
+document.getElementById("nextWeekBtn").onclick = () =>
+  switchToWeek(new Date(currentStartDate.getTime() + 7*24*60*60*1000));
+
+document.getElementById("todayBtn").onclick = () =>
+  switchToWeek(new Date());
+
+document.getElementById("resetBtn").onclick = () => {
+  // Clear ONLY the Mon–Fri cells (leave crew lead/apprentice intact)
+  document.querySelectorAll("#week-grid .cell textarea, #week-grid .cell input[type='text']")
+    .forEach(el => { el.value = ""; });
+  document.querySelectorAll("#week-grid .cell input[type='checkbox']")
+    .forEach(cb => { cb.checked = false; });
+  document.querySelectorAll("#week-grid .cell")
+    .forEach(c => c.classList.remove("highlight-red"));
+};
+
       document.getElementById("printBtn").onclick = () => window.print();
 
       const calendarBtn = document.getElementById("calendarBtn");
