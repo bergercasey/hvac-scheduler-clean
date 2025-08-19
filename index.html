@@ -304,31 +304,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
 });
 </script>
-<!-- HVAC MINIMAL CONTROLLER (inline) -->
+<!-- HVAC — clean, scoped controller: week-aware autosave/load + safe reset + calendar/nav -->
 <script>
 (function(){
-  // ---------- tiny logger → shows in your Change Log if available ----------
-  if (!window.addLog) {
-    const wrap = document.createElement('div');
-    wrap.id='hvac-log'; wrap.style.cssText='position:fixed;bottom:8px;left:8px;max-width:60vw;background:#111;color:#0f0;padding:6px 8px;font:12px/1.3 monospace;border-radius:4px;z-index:99999;opacity:.9;white-space:pre-wrap';
-    document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(wrap));
-    window.addLog = (m)=>{ (wrap||document.getElementById('hvac-log')||{append:()=>{}}).append(m+'\n'); console.log('[HVAC]', m); };
-  }
-  const log=(m,o)=> addLog(m+(o?(' '+JSON.stringify(o)):''));
+  if (window._HVAC_CLEAN) return; window._HVAC_CLEAN = true;
 
-  // ---------- selectors (grid vs persistent) ----------
+  // --- tiny logger (uses your Change Log if addLog exists) ---
+  const log = (m,o)=> (window.addLog ? addLog(m + (o?(' '+JSON.stringify(o)):''))
+                                     : console.log('[HVAC]', m, o||''));
+
+  // --- selectors ---
   const DAYS=['Mon','Tue','Wed','Thu','Fri'], pad2=n=>String(n).padStart(2,'0');
-  const jobSel    = '.job-input, input[placeholder="Job"]';
-  const helperSel = '.helper-input, input[placeholder="Helper"]';
-  const ptoSel    = '.pto-box';
-  const helperPto = '.helper-pto-box';
-  const leadSel   = '.lead-input';
-  const apprSel   = '.apprentice-input';
-  const floaterSel= '.floater-name';
-  const todoSel   = '.todo-job';
-  const Q=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
+  const jobSel     = '.job-input, input[placeholder="Job"]';
+  const helperSel  = '.helper-input, input[placeholder="Helper"]';
+  const ptoSel     = '.pto-box';
+  const helperPto  = '.helper-pto-box';
+  // persistent (must NOT be cleared on reset)
+  const leadSel    = '.lead-input';
+  const apprSel    = '.apprentice-input';
+  const floaterSel = '.floater-name';
+  const todoSel    = '.todo-job';
 
-  // ---------- week utils ----------
+  const Q = (root, sel)=> Array.from(root.querySelectorAll(sel));
+
+  // --- week utils ---
   function mondayOf(d){ const x=new Date(d); x.setHours(0,0,0,0); const wd=x.getDay(); const diff=(wd===0?-6:1-wd); x.setDate(x.getDate()+diff); return x; }
   function isoWeekKeyFromDate(d){
     const x=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -337,116 +336,145 @@ document.addEventListener('DOMContentLoaded', () => {
     const wk=Math.ceil((((x-y0)/86400000)+1)/7);
     return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
   }
+
+  // --- single source of truth: displayed week ---
   const state = {
     monday: (()=>{ const s=localStorage.getItem('displayedMonday'); return s? new Date(s) : mondayOf(new Date()); })(),
     setMonday(d){ this.monday=mondayOf(d); localStorage.setItem('displayedMonday', this.monday.toISOString()); loadWeekFor(this.monday); },
     key(){ return isoWeekKeyFromDate(this.monday); }
   };
-  window.hvacSetWeek = (input)=>{ const d=input instanceof Date? input : new Date(input); state.setMonday(d); };
+  window.hvacSetWeek = (input)=> { const d = (input instanceof Date) ? input : new Date(input); state.setMonday(d); };
 
-  // ---------- collect/apply (GRID ONLY) ----------
-  function collectWeekFlat(){
-    const jobs=Q(jobSel), helps=Q(helperSel), pto=Q(ptoSel), hpto=Q(helperPto);
+  // --- find the WEEK GRID container (prefer #week-grid, else auto-detect) ---
+  function lowestCommonContainer(els){
+    if (!els.length) return null;
+    let node = els[0].parentElement;
+    while (node && node !== document.body){
+      const count = els.filter(e => node.contains(e)).length;
+      if (count >= Math.max(5, Math.ceil(els.length * 0.6))) return node;
+      node = node.parentElement;
+    }
+    return document.body;
+  }
+  function getGrid(){
+    const explicit = document.getElementById('week-grid') || document.querySelector('[data-week-grid="1"]');
+    if (explicit) return explicit;
+    const cands = Array.from(document.querySelectorAll(`${jobSel},${helperSel},${ptoSel},${helperPto}`));
+    if (cands.length < 10) return null;
+    const container = lowestCommonContainer(cands) || document.body;
+    container.setAttribute('data-week-grid','1');
+    return container;
+  }
+
+  // --- helper: is this element persistent (never clear it)? ---
+  const isPersistent = (el) =>
+    el.closest('[data-persistent="1"]') ||
+    el.matches(leadSel) || el.matches(apprSel) || el.matches(floaterSel) || el.matches(todoSel);
+
+  // --- collect/apply/clear ONLY inside grid, skipping persistent elements ---
+  function collectWeekFlat(grid){
+    const jobs=Q(grid, jobSel), helps=Q(grid, helperSel), pto=Q(grid, ptoSel), hpto=Q(grid, helperPto);
     const out={}, max=Math.max(jobs.length, helps.length, pto.length, hpto.length);
     for(let i=0;i<max;i++){
       const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
-      if(jobs[i]  && jobs[i].value)  out[`${base}:job`]=jobs[i].value;
-      if(helps[i] && helps[i].value) out[`${base}:helper`]=helps[i].value;
-      if(pto[i]   && pto[i].checked) out[`${base}:pto`]=true;
-      if(hpto[i]  && hpto[i].checked)out[`${base}:helperPto`]=true;
+      if(jobs[i] && !isPersistent(jobs[i])   && jobs[i].value)   out[`${base}:job`] = jobs[i].value;
+      if(helps[i]&& !isPersistent(helps[i])  && helps[i].value)  out[`${base}:helper`] = helps[i].value;
+      if(pto[i]  && !isPersistent(pto[i])    && pto[i].checked)  out[`${base}:pto`] = true;
+      if(hpto[i] && !isPersistent(hpto[i])   && hpto[i].checked) out[`${base}:helperPto`] = true;
     }
     return out;
   }
-  function clearWeekGrid(){
-    Q(jobSel).forEach(el=> el.value='');
-    Q(helperSel).forEach(el=> el.value='');
-    Q(ptoSel).forEach(el=> { const was=el.checked; el.checked=false; if(was) el.dispatchEvent(new Event('change',{bubbles:true})); });
-    Q(helperPto).forEach(el=> { const was=el.checked; el.checked=false; if(was) el.dispatchEvent(new Event('change',{bubbles:true})); });
+  function clearWeekGrid(grid){
+    Q(grid, `${jobSel},${helperSel}`).forEach(el=>{ if(!isPersistent(el)) el.value=''; });
+    Q(grid, `${ptoSel},${helperPto}`).forEach(el=>{
+      if(isPersistent(el)) return;
+      const was=el.checked; el.checked=false;
+      if (was) el.dispatchEvent(new Event('change',{bubbles:true})); // keep red shading in sync
+    });
   }
   let applying=false;
-  function applyWeekData(data){
+  function applyWeekData(grid, data){
     applying=true;
-    clearWeekGrid();
-    const jobs=Q(jobSel), helps=Q(helperSel), pto=Q(ptoSel), hpto=Q(helperPto);
+    clearWeekGrid(grid);
+    const jobs=Q(grid, jobSel), helps=Q(grid, helperSel), pto=Q(grid, ptoSel), hpto=Q(grid, helperPto);
     Object.entries(data||{}).forEach(([k,v])=>{
       const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/); if(!m) return;
       const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
-      if(m[3]==='job'      && jobs[idx])  jobs[idx].value   = String(v);
-      if(m[3]==='helper'   && helps[idx]) helps[idx].value  = String(v);
-      if(m[3]==='pto'      && pto[idx])  { pto[idx].checked  = !!v; pto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
-      if(m[3]==='helperPto'&& hpto[idx]) { hpto[idx].checked = !!v; hpto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+      if(m[3]==='job'      && jobs[idx] && !isPersistent(jobs[idx]))   jobs[idx].value   = String(v);
+      if(m[3]==='helper'   && helps[idx]&& !isPersistent(helps[idx]))  helps[idx].value  = String(v);
+      if(m[3]==='pto'      && pto[idx]  && !isPersistent(pto[idx]))  { pto[idx].checked  = !!v; pto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+      if(m[3]==='helperPto'&& hpto[idx] && !isPersistent(hpto[idx])) { hpto[idx].checked = !!v; hpto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
     });
     applying=false;
   }
 
-  // ---------- API (with visible logging) ----------
-  const _fetch = window.fetch.bind(window);
-  window.fetch = async (input, init) => {
-    const url = (typeof input==='string')? input : (input?.url||'');
-    const method = (init?.method||'GET').toUpperCase();
-    if (/\.netlify\/functions\/(save|load)/.test(url)) log('HTTP →',{method,url});
-    const res = await _fetch(input, init);
-    if (/\.netlify\/functions\/(save|load)/.test(url)) log('HTTP ←',{status:res.status, ok:res.ok, url});
-    return res;
-  };
-
+  // --- API (direct to Netlify functions) ---
   async function apiLoadWeek(key){
     const r = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(key)}`);
-    if (!r.ok) { log('load fail',{status:r.status}); return {}; }
-    const j = await r.json().catch(()=>({}));
-    return (j && j.ok) ? (j.data||{}) : {};
+    const j = await r.json().catch(()=> ({}));
+    log('load-week', {status:r.status, ok:r.ok, key});
+    return (r.ok && j && j.ok) ? (j.data||{}) : {};
   }
   async function apiSaveWeek(key, data){
     const r = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ weekKey:key, data })
     });
-    const t = await r.text().catch(()=> ''); log('save',{status:r.status, ok:r.ok, body:t.slice(0,140)});
+    const t = await r.text().catch(()=> ''); log('save-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
   async function apiWipeWeek(key){
     const r = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ weekKey:key, wipe:true })
     });
-    const t = await r.text().catch(()=> ''); log('wipe',{status:r.status, ok:r.ok, body:t.slice(0,140)});
+    const t = await r.text().catch(()=> ''); log('wipe-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
 
-  // ---------- autosave & wiring ----------
-  let tWeek=null;
-  const deb=(fn)=>{ clearTimeout(tWeek); tWeek=setTimeout(fn, 800); };
-  document.addEventListener('input',(e)=>{
-    if (applying) return;
-    if (e.target.matches(jobSel) || e.target.matches(helperSel))
-      deb(()=> apiSaveWeek(state.key(), collectWeekFlat()));
-  }, {passive:true});
-  document.addEventListener('change',(e)=>{
-    if (applying) return;
-    if (e.target.matches(ptoSel) || e.target.matches(helperPto))
-      deb(()=> apiSaveWeek(state.key(), collectWeekFlat()));
-  }, {passive:true});
+  // --- bind grid events (autosave scoped to grid) ---
+  function bindGrid(grid){
+    let t=null; const deb=(fn)=>{ clearTimeout(t); t=setTimeout(fn, 800); };
+    grid.addEventListener('input', (e)=>{
+      if (applying) return;
+      if (e.target.matches(jobSel) || e.target.matches(helperSel))
+        deb(()=> apiSaveWeek(state.key(), collectWeekFlat(grid)));
+    }, {passive:true});
+    grid.addEventListener('change', (e)=>{
+      if (applying) return;
+      if (e.target.matches(ptoSel) || e.target.matches(helperPto))
+        deb(()=> apiSaveWeek(state.key(), collectWeekFlat(grid)));
+    }, {passive:true});
+  }
 
-  // Reset button → clear ONLY grid + wipe THIS week
-  document.getElementById('resetBtn')?.addEventListener('click',(e)=>{
-    e.preventDefault();
-    clearWeekGrid();
-    apiWipeWeek(state.key());
-  });
+  // --- Reset: ONLY grid + wipe THIS week (persistent untouched) ---
+  function bindReset(grid){
+    document.getElementById('resetBtn')?.addEventListener('click', (e)=>{
+      e.preventDefault();
+      clearWeekGrid(grid);
+      apiWipeWeek(state.key());
+    });
+  }
 
-  // Prev/Next/Today buttons (if present)
-  document.getElementById('prevWeekBtn')?.addEventListener('click',(e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()-7); state.setMonday(d); });
-  document.getElementById('nextWeekBtn')?.addEventListener('click',(e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()+7); state.setMonday(d); });
-  document.getElementById('todayBtn')   ?.addEventListener('click',(e)=>{ e.preventDefault(); state.setMonday(new Date()); });
+  // --- week navigation + calendar ---
+  function bindNav(){
+    document.getElementById('prevWeekBtn')?.addEventListener('click',(e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()-7); state.setMonday(d); });
+    document.getElementById('nextWeekBtn')?.addEventListener('click',(e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()+7); state.setMonday(d); });
+    document.getElementById('todayBtn')   ?.addEventListener('click',(e)=>{ e.preventDefault(); state.setMonday(new Date()); });
+    const picker = document.getElementById('calendar') || document.getElementById('weekPicker') || document.querySelector('input[type="date"]');
+    if (picker) picker.addEventListener('change', (e)=> window.hvacSetWeek(e.target.value));
+    document.addEventListener('click', (e)=>{
+      const cell = e.target.closest('[data-date]'); if (cell) window.hvacSetWeek(cell.getAttribute('data-date'));
+    });
+  }
 
-  // Calendar: <input type="date" id="calendar"> or any [data-date="YYYY-MM-DD"]
-  const picker = document.getElementById('calendar') || document.getElementById('weekPicker');
-  if (picker) picker.addEventListener('change', e=> window.hvacSetWeek(e.target.value));
-  document.addEventListener('click',(e)=>{ const cell=e.target.closest('[data-date]'); if(cell) window.hvacSetWeek(cell.getAttribute('data-date')); });
-
-  // ---------- boot ----------
+  // --- boot: detect grid → bind → load displayed week ---
   document.addEventListener('DOMContentLoaded', async ()=>{
-    log('boot',{week: state.key()});
+    const grid = getGrid();
+    if (!grid) { log('grid not found: wrap the Mon–Fri area in <div id="week-grid"> or add data-week-grid="1"'); return; }
+    bindGrid(grid);
+    bindReset(grid);
+    bindNav();
     const data = await apiLoadWeek(state.key());
-    applyWeekData(data);
+    applyWeekData(grid, data);
   });
 })();
 </script>
