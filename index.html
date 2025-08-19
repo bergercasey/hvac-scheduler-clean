@@ -1,78 +1,63 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>HVAC Weekly Schedule</title>
-  <style>
-    body { font-family: sans-serif; margin: 0; padding: 20px; background: #fff; }
-    h1 { text-align: center; margin-bottom: 10px; }
-    .button-row { text-align: center; margin-bottom: 15px; }
-    .button-row button { margin: 0 5px; padding: 6px 10px; font-size: 14px; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HVAC Weekly Schedule</title>
+<style>
+  :root { --cell-b: #ccc; --pad: 20px; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: var(--pad); background:#fff; }
+  h1 { text-align: center; margin: 0 0 12px; font-weight: 700; }
+  .button-row { text-align: center; margin-bottom: 14px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .button-row button { padding: 6px 10px; font-size: 14px; cursor:pointer; }
 
-    .weekday-header {
-      display: grid;
-      grid-template-columns: 150px repeat(5, 1fr);
-      text-align: center;
-      font-weight: bold;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 5px;
-      margin-bottom: 10px;
-    }
-    .weekday-header div { padding: 5px 0; }
+  /* Weekday header (Crew + Mon..Fri) */
+  .weekday-header {
+    display: grid; grid-template-columns: 150px repeat(5, 1fr);
+    text-align: center; font-weight: 700; border-bottom: 1px solid var(--cell-b);
+    padding-bottom: 6px; margin-bottom: 10px;
+  }
+  .weekday-header div { padding: 5px 0; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 150px repeat(5, 1fr);
-      row-gap: 6px;
-      column-gap: 4px;
-    }
-    .crew-label {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-weight: bold;
-    }
-    .crew-label input { width: 90%; margin: 2px 0; }
+  /* Weekly grid */
+  .grid { display: grid; grid-template-columns: 150px repeat(5, 1fr); gap: 6px 4px; }
+  .crew-label { display:flex; flex-direction:column; align-items:center; font-weight:700; }
+  .crew-label input { width: 90%; margin: 2px 0; padding: 4px 6px; }
 
-    .cell { border: 1px solid #ccc; padding: 2px; position: relative; }
-    .job-input, .helper-input {
-      width: 100%; border: none; padding: 2px; font-size: 14px; box-sizing: border-box;
-    }
-    .job-input { resize: none; } /* textarea */
-    .helper-input { color: blue; }
+  .cell { border: 1px solid var(--cell-b); padding: 2px; position: relative; min-height: 48px; }
+  .job-input, .helper-input { width: 100%; border: none; padding: 2px; font-size: 14px; box-sizing: border-box; }
+  .job-input { resize: none; }
+  .helper-input { color: #0b62ff; }
+  .pto-box, .helper-pto-box { position:absolute; width:14px; height:14px; cursor:pointer; appearance:auto; -webkit-appearance:auto; }
+  .pto-box         { top:2px;  right:2px;  accent-color: red; }
+  .helper-pto-box  { bottom:2px; right:2px; accent-color: #0b62ff; }
+  .highlight-red { background-color: #ffe1e1; }
 
-    .pto-box, .helper-pto-box {
-      position: absolute; width: 14px; height: 14px; cursor: pointer;
-      appearance: auto; -webkit-appearance: auto;
-    }
-    .pto-box { top: 2px; right: 2px; accent-color: red; }
-    .helper-pto-box { bottom: 2px; right: 2px; accent-color: blue; }
+  /* Bottom sections */
+  #bottomSection { display:flex; gap:10px; margin:20px auto 0; max-width:1000px; }
+  #floatersSection { flex:1; min-width:200px; }
+  #todoSection { flex:3; }
+  #todoSection .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:4px; }
 
-    .highlight-red { background-color: #ffd6d6; }
+  /* Calendar popup */
+  .calendar-popup { position:absolute; top:68px; left:20px; background:#fff; border:1px solid #ccc; padding:10px; z-index:999; font-size:14px; width:260px; box-shadow:0 6px 18px rgba(0,0,0,.1) }
+  .calendar-header { display:flex; justify-content:space-between; align-items:center; font-weight:700; margin-bottom:5px; }
+  .calendar-nav { cursor:pointer; padding:0 10px; user-select:none; }
+  .calendar-popup table { width:100%; border-collapse:collapse; }
+  .calendar-popup th, .calendar-popup td { width:14.2%; text-align:center; padding:4px; cursor:pointer; }
+  .calendar-popup th { font-weight:700; }
+  .calendar-popup td:hover { background:#eee; }
 
-    /* Calendar popup */
-    .calendar-popup {
-      position: absolute; top: 60px; left: 20px;
-      background: #fff; border: 1px solid #ccc; padding: 10px;
-      z-index: 999; font-size: 14px; width: 260px;
-    }
-    .calendar-header {
-      display: flex; justify-content: space-between; align-items: center;
-      font-weight: bold; margin-bottom: 5px;
-    }
-    .calendar-nav { cursor: pointer; padding: 0 10px; user-select: none; }
-    .calendar-popup table { width: 100%; border-collapse: collapse; }
-    .calendar-popup th, .calendar-popup td {
-      width: 14.2%; text-align: center; padding: 4px; cursor: pointer;
-    }
-    .calendar-popup th { font-weight: bold; }
-    .calendar-popup td:hover { background: #eee; }
-  </style>
+  /* Change Log */
+  #logWrap { margin-top:18px; }
+  #logWrap h3 { margin: 6px 0; font-size: 14px; }
+  #changeLog { height:160px; overflow:auto; border:1px solid #ddd; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:8px; background:#fafafa; white-space:pre-wrap; }
+</style>
 </head>
 <body>
+
   <h1>HVAC Weekly Schedule</h1>
+
   <div class="button-row">
     <button id="calendarBtn">📅</button>
     <button id="prevWeekBtn">Previous Week</button>
@@ -83,256 +68,78 @@
   </div>
 
   <div class="weekday-header" id="weekdayHeader"></div>
- <div class="grid" id="week-grid">
+
+  <!-- Weekly grid container: the script builds content here -->
+  <div class="grid" id="week-grid"></div>
+
+  <!-- Calendar (hidden until opened) -->
   <div id="calendarContainer" class="calendar-popup" style="display:none;"></div>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      function getStartOfWeek(date) {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        d.setDate(diff);
-        d.setHours(0,0,0,0);
-        return d;
-      }
-
-      function formatDate(d) {
-        return `${d.getMonth()+1}/${d.getDate()}`;
-      }
-
-      function renderHeader(startDate) {
-        const header = document.getElementById("weekdayHeader");
-        header.innerHTML = "<div>Crew</div>";
-        for (let i = 0; i < 5; i++) {
-          const d = new Date(startDate);
-          d.setDate(startDate.getDate() + i);
-          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-          header.innerHTML += `<div>${dayName} ${formatDate(d)}</div>`;
-        }
-      }
-
-      function createGrid() {
-        const grid = document.getElementById("scheduleGrid");
-        grid.innerHTML = "";
-        for (let row = 0; row < 12; row++) {
-          const crewCell = document.createElement("div");
-          crewCell.className = "crew-label";
-          crewCell.setAttribute("data-persistent", "1");
-          crewCell.innerHTML = `
-            <input type="text" class="lead-input" placeholder="Lead" />
-            <input type="text" class="apprentice-input" placeholder="Apprentice" />
-          `;
-          grid.appendChild(crewCell);
-
-          for (let col = 0; col < 5; col++) {
-            const cell = document.createElement("div");
-            cell.className = "cell";
-
-            const job = document.createElement("textarea");
-            job.className = "job-input";
-            job.rows = 2;
-            job.placeholder = col === 0 ? "Job" : "";
-            cell.appendChild(job);
-
-            const helper = document.createElement("input");
-            helper.className = "helper-input";
-            helper.placeholder = col === 0 ? "Helper" : "";
-            cell.appendChild(helper);
-
-            const pto = document.createElement("input");
-            pto.type = "checkbox";
-            pto.className = "pto-box";
-            pto.addEventListener("change", () => {
-              if (pto.checked) cell.classList.add("highlight-red");
-              else cell.classList.remove("highlight-red");
-            });
-            cell.appendChild(pto);
-
-            const helperPto = document.createElement("input");
-            helperPto.type = "checkbox";
-            helperPto.className = "helper-pto-box";
-            helperPto.addEventListener("change", () => {}); // blue check only
-            cell.appendChild(helperPto);
-
-            grid.appendChild(cell);
-          }
-        }
-      }
-
-      // Calendar state
-      let calendarMonthOffset = 0;
-
-      function renderCalendar(referenceDate) {
-        const cal = document.getElementById("calendarContainer");
-        const ref = new Date(referenceDate);
-        ref.setMonth(ref.getMonth() + calendarMonthOffset);
-        const year = ref.getFullYear();
-        const month = ref.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-
-        const monthName = ref.toLocaleString("default", { month: "long" });
-        let html = `<div class="calendar-header">
-                      <span class="calendar-nav" id="calPrev">‹</span>
-                      <span>${monthName} ${year}</span>
-                      <span class="calendar-nav" id="calNext">›</span>
-                    </div>`;
-
-        html += "<table><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr><tr>";
-        for (let i = 0; i < firstDay.getDay(); i++) html += "<td></td>";
-        for (let d = 1; d <= lastDay.getDate(); d++) {
-          const thisDate = new Date(year, month, d);
-          html += `<td data-ymd="${year}-${month+1}-${d}">${d}</td>`;
-          if (thisDate.getDay() === 6) html += "</tr><tr>";
-        }
-        html += "</tr></table>";
-        cal.innerHTML = html;
-
-        // Wire nav + day clicks
-        document.getElementById("calPrev").onclick = () => { calendarMonthOffset -= 1; renderCalendar(referenceDate); };
-        document.getElementById("calNext").onclick = () => { calendarMonthOffset += 1; renderCalendar(referenceDate); };
-        cal.querySelectorAll("td[data-ymd]").forEach(td => {
-          td.onclick = () => jumpToDate(td.getAttribute("data-ymd"));
-        });
-      }
-
-    window.jumpToDate = (ymd) => {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const picked = new Date(y, m - 1, d);
-  switchToWeek(picked);                  // <- unified path
-  document.getElementById("calendarContainer").style.display = "none";
-  calendarMonthOffset = 0;
-};
-
-      let currentStartDate = getStartOfWeek(new Date());
-      renderHeader(currentStartDate);
-      createGrid();
-function switchToWeek(dateLike){
-  const d = new Date(dateLike);
-  currentStartDate = getStartOfWeek(d);
-  renderHeader(currentStartDate);
-  // If a saver/loader script is present, let it know we changed weeks
-  if (window.hvacSetWeek) hvacSetWeek(currentStartDate);
-}
-
-      // Buttons
-    document.getElementById("prevWeekBtn").onclick = () =>
-  switchToWeek(new Date(currentStartDate.getTime() - 7*24*60*60*1000));
-
-document.getElementById("nextWeekBtn").onclick = () =>
-  switchToWeek(new Date(currentStartDate.getTime() + 7*24*60*60*1000));
-
-document.getElementById("todayBtn").onclick = () =>
-  switchToWeek(new Date());
-
-document.getElementById("resetBtn").onclick = () => {
-  // Clear ONLY the Mon–Fri cells (leave crew lead/apprentice intact)
-  document.querySelectorAll("#week-grid .cell textarea, #week-grid .cell input[type='text']")
-    .forEach(el => { el.value = ""; });
-  document.querySelectorAll("#week-grid .cell input[type='checkbox']")
-    .forEach(cb => { cb.checked = false; });
-  document.querySelectorAll("#week-grid .cell")
-    .forEach(c => c.classList.remove("highlight-red"));
-};
-
-      document.getElementById("printBtn").onclick = () => window.print();
-
-      const calendarBtn = document.getElementById("calendarBtn");
-      const calendarContainer = document.getElementById("calendarContainer");
-      calendarBtn.onclick = () => {
-        const show = calendarContainer.style.display === "none";
-        calendarContainer.style.display = show ? "block" : "none";
-        if (show) renderCalendar(currentStartDate);
-      };
-    });
-  </script>
-
-<div id="bottomSection" style="display: flex; margin-top: 20px; max-width: 1000px; margin-left: auto; margin-right: auto; gap: 10px;">
-  <!-- Floaters -->
-  <div id="floatersSection" style="flex: 1; min-width: 200px;">
-    <h3 style="text-align: center; margin: 4px 0;">Floaters</h3>
-    <div style="display: flex; flex-direction: column; gap: 4px;"><div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 1" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 2" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 3" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 4" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 5" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 6" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 7" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 8" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 9" style="flex: 1; padding: 4px; font-size: 14px;"></div>
-<div style="display: flex; align-items: center; gap: 4px;"><input type="checkbox" class="floater-check" style="flex-shrink:0;"><input type="text" class="floater-name" placeholder="Floater 10" style="flex: 1; padding: 4px; font-size: 14px;"></div></div>
-  </div>
-  <!-- Need to be done jobs -->
-  <div id="todoSection" style="flex: 3;">
-    <h3 style="text-align: center; margin: 4px 0;">Need to be done jobs</h3>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-      <input type="text" class="todo-job" placeholder="Job 1" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 2" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 3" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 4" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 5" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 6" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 7" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 8" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 9" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 10" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 11" style="padding: 4px; font-size: 14px;">
-<input type="text" class="todo-job" placeholder="Job 12" style="padding: 4px; font-size: 14px;">
+  <!-- Bottom: Floaters & To-Do (persistent; not cleared by Reset) -->
+  <div id="bottomSection" data-persistent="1">
+    <div id="floatersSection">
+      <h3 style="text-align:center;margin:4px 0;">Floaters</h3>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <!-- 10 floaters -->
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 1"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 2"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 3"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 4"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 5"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 6"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 7"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 8"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 9"  style="flex:1; padding:4px; font-size:14px;"></div>
+        <div style="display:flex; align-items:center; gap:4px;"><input type="checkbox" class="floater-check"><input type="text" class="floater-name" placeholder="Floater 10" style="flex:1; padding:4px; font-size:14px;"></div>
+      </div>
+    </div>
+    <div id="todoSection">
+      <h3 style="text-align:center;margin:4px 0;">Need to be done jobs</h3>
+      <div class="grid2">
+        <!-- 12 to-do entries -->
+        <input type="text" class="todo-job" placeholder="Job 1"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 2"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 3"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 4"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 5"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 6"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 7"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 8"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 9"  style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 10" style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 11" style="padding:4px; font-size:14px;">
+        <input type="text" class="todo-job" placeholder="Job 12" style="padding:4px; font-size:14px;">
+      </div>
     </div>
   </div>
-</div>
 
+  <!-- Change Log -->
+  <div id="logWrap">
+    <h3>Change Log:</h3>
+    <div id="changeLog"></div>
+  </div>
 
-<style>
-  .floater-name.assigned { background-color: #ffcccc; }
-</style>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.floater-check').forEach((check, idx) => {
-    check.addEventListener('change', (e) => {
-      const input = check.parentElement.querySelector('.floater-name');
-      if (check.checked) {
-        input.classList.add('assigned');
-      } else {
-        input.classList.remove('assigned');
-      }
-    });
-  });
+/* =========================
+   HVAC — complete controller
+   ========================= */
 
-  // Helper PTO checkboxes
-  document.querySelectorAll('.helper-pto-box').forEach((check, idx) => {
-    check.addEventListener('change', () => {
-      addLog(`Helper PTO ${idx+1} set to ${check.checked}`);
-    });
-  });
-
-});
-</script>
-<!-- HVAC — clean, scoped controller: week-aware autosave/load + safe reset + calendar/nav -->
-<script>
 (function(){
-  if (window._HVAC_CLEAN) return; window._HVAC_CLEAN = true;
+  // ---------- tiny logger ----------
+  const logBox = document.getElementById('changeLog');
+  function ts(){ const d=new Date(); return d.toLocaleTimeString(); }
+  function addLog(msg, obj){
+    const line = `[${ts()}] ${msg}` + (obj? ' ' + JSON.stringify(obj) : '');
+    logBox.textContent += (logBox.textContent ? '\n' : '') + line;
+    logBox.scrollTop = logBox.scrollHeight;
+    console.log(line);
+  }
+  window.addLog = addLog; // expose for any helper events
 
-  // --- tiny logger (uses your Change Log if addLog exists) ---
-  const log = (m,o)=> (window.addLog ? addLog(m + (o?(' '+JSON.stringify(o)):''))
-                                     : console.log('[HVAC]', m, o||''));
+  // ---------- helpers ----------
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri'];
+  const pad2 = n => String(n).padStart(2,'0');
 
-  // --- selectors ---
-  const DAYS=['Mon','Tue','Wed','Thu','Fri'], pad2=n=>String(n).padStart(2,'0');
-  const jobSel     = '.job-input, input[placeholder="Job"]';
-  const helperSel  = '.helper-input, input[placeholder="Helper"]';
-  const ptoSel     = '.pto-box';
-  const helperPto  = '.helper-pto-box';
-  // persistent (must NOT be cleared on reset)
-  const leadSel    = '.lead-input';
-  const apprSel    = '.apprentice-input';
-  const floaterSel = '.floater-name';
-  const todoSel    = '.todo-job';
-
-  const Q = (root, sel)=> Array.from(root.querySelectorAll(sel));
-
-  // --- week utils ---
   function mondayOf(d){ const x=new Date(d); x.setHours(0,0,0,0); const wd=x.getDay(); const diff=(wd===0?-6:1-wd); x.setDate(x.getDate()+diff); return x; }
   function isoWeekKeyFromDate(d){
     const x=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -341,83 +148,149 @@ document.addEventListener('DOMContentLoaded', () => {
     const wk=Math.ceil((((x-y0)/86400000)+1)/7);
     return `${x.getUTCFullYear()}-W${String(wk).padStart(2,'0')}`;
   }
+  function fmtHeader(d){ return `${d.toLocaleDateString('en-US',{weekday:'short'})} ${d.getMonth()+1}/${d.getDate()}`; }
 
-  // --- single source of truth: displayed week ---
+  // ---------- state (displayed week) ----------
   const state = {
     monday: (()=>{ const s=localStorage.getItem('displayedMonday'); return s? new Date(s) : mondayOf(new Date()); })(),
-    setMonday(d){ this.monday=mondayOf(d); localStorage.setItem('displayedMonday', this.monday.toISOString()); loadWeekFor(this.monday); },
+    setMonday(d){
+      this.monday = mondayOf(d);
+      localStorage.setItem('displayedMonday', this.monday.toISOString());
+      renderHeader(this.monday);
+      loadWeekFor(this.monday);  // clear + load
+    },
     key(){ return isoWeekKeyFromDate(this.monday); }
   };
-  window.hvacSetWeek = (input)=> { const d = (input instanceof Date) ? input : new Date(input); state.setMonday(d); };
+  window.hvacSetWeek = (input)=> { const d = input instanceof Date ? input : new Date(input); state.setMonday(d); };
 
-  // --- find the WEEK GRID container (prefer #week-grid, else auto-detect) ---
-  function lowestCommonContainer(els){
-    if (!els.length) return null;
-    let node = els[0].parentElement;
-    while (node && node !== document.body){
-      const count = els.filter(e => node.contains(e)).length;
-      if (count >= Math.max(5, Math.ceil(els.length * 0.6))) return node;
-      node = node.parentElement;
+  // ---------- UI: header + grid ----------
+  const header = document.getElementById('weekdayHeader');
+  const grid   = document.getElementById('week-grid');
+
+  function renderHeader(startDate){
+    header.innerHTML = '<div>Crew</div>';
+    for(let i=0;i<5;i++){
+      const d=new Date(startDate); d.setDate(startDate.getDate()+i);
+      const div=document.createElement('div'); div.textContent = fmtHeader(d);
+      header.appendChild(div);
     }
-    return document.body;
-  }
-  function getGrid(){
-    const explicit = document.getElementById('week-grid') || document.querySelector('[data-week-grid="1"]');
-    if (explicit) return explicit;
-    const cands = Array.from(document.querySelectorAll(`${jobSel},${helperSel},${ptoSel},${helperPto}`));
-    if (cands.length < 10) return null;
-    const container = lowestCommonContainer(cands) || document.body;
-    container.setAttribute('data-week-grid','1');
-    return container;
   }
 
-  // --- helper: is this element persistent (never clear it)? ---
-  const isPersistent = (el) =>
-    el.closest('[data-persistent="1"]') ||
-    el.matches(leadSel) || el.matches(apprSel) || el.matches(floaterSel) || el.matches(todoSel);
+  function createGrid(){
+    grid.innerHTML = '';
+    for(let row=0; row<12; row++){
+      // Crew Lead / Apprentice (persistent; never cleared)
+      const crew = document.createElement('div');
+      crew.className = 'crew-label';
+      crew.setAttribute('data-persistent','1');
+      crew.innerHTML = `
+        <input type="text" class="lead-input" placeholder="Lead">
+        <input type="text" class="apprentice-input" placeholder="Apprentice">
+      `;
+      grid.appendChild(crew);
 
-  // --- collect/apply/clear ONLY inside grid, skipping persistent elements ---
-  function collectWeekFlat(grid){
-    const jobs=Q(grid, jobSel), helps=Q(grid, helperSel), pto=Q(grid, ptoSel), hpto=Q(grid, helperPto);
+      // 5 day cells
+      for(let col=0; col<5; col++){
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        const job = document.createElement('textarea');
+        job.className = 'job-input';
+        job.rows = 2;
+        job.placeholder = (col===0 ? 'Job' : '');
+        cell.appendChild(job);
+
+        const helper = document.createElement('input');
+        helper.className = 'helper-input';
+        helper.placeholder = (col===0 ? 'Helper' : '');
+        cell.appendChild(helper);
+
+        const pto = document.createElement('input');
+        pto.type = 'checkbox';
+        pto.className = 'pto-box';
+        pto.addEventListener('change', ()=>{
+          if (pto.checked) cell.classList.add('highlight-red');
+          else cell.classList.remove('highlight-red');
+        });
+        cell.appendChild(pto);
+
+        const helperPto = document.createElement('input');
+        helperPto.type = 'checkbox';
+        helperPto.className = 'helper-pto-box';
+        cell.appendChild(helperPto);
+
+        grid.appendChild(cell);
+      }
+    }
+  }
+
+  // ---------- collect/apply/clear (grid only) ----------
+  function clearWeekGrid(){
+    grid.querySelectorAll('.cell textarea, .cell input[type="text"]').forEach(el => { el.value=''; });
+    grid.querySelectorAll('.cell input[type="checkbox"]').forEach(cb => { const was=cb.checked; cb.checked=false; if(was) cb.dispatchEvent(new Event('change',{bubbles:true})); });
+    grid.querySelectorAll('.cell').forEach(c => c.classList.remove('highlight-red'));
+  }
+
+  function collectWeekFlat(){
+    const jobs   = Array.from(grid.querySelectorAll('.job-input'));
+    const helps  = Array.from(grid.querySelectorAll('.helper-input'));
+    const pto    = Array.from(grid.querySelectorAll('.pto-box'));
+    const hpto   = Array.from(grid.querySelectorAll('.helper-pto-box'));
     const out={}, max=Math.max(jobs.length, helps.length, pto.length, hpto.length);
-    for(let i=0;i<max;i++){
+    for (let i=0;i<max;i++){
       const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
-      if(jobs[i] && !isPersistent(jobs[i])   && jobs[i].value)   out[`${base}:job`] = jobs[i].value;
-      if(helps[i]&& !isPersistent(helps[i])  && helps[i].value)  out[`${base}:helper`] = helps[i].value;
-      if(pto[i]  && !isPersistent(pto[i])    && pto[i].checked)  out[`${base}:pto`] = true;
-      if(hpto[i] && !isPersistent(hpto[i])   && hpto[i].checked) out[`${base}:helperPto`] = true;
+      if (jobs[i]  && jobs[i].value)  out[`${base}:job`]       = jobs[i].value;
+      if (helps[i] && helps[i].value) out[`${base}:helper`]    = helps[i].value;
+      if (pto[i]   && pto[i].checked) out[`${base}:pto`]       = true;
+      if (hpto[i]  && hpto[i].checked)out[`${base}:helperPto`] = true;
     }
     return out;
   }
-  function clearWeekGrid(grid){
-    Q(grid, `${jobSel},${helperSel}`).forEach(el=>{ if(!isPersistent(el)) el.value=''; });
-    Q(grid, `${ptoSel},${helperPto}`).forEach(el=>{
-      if(isPersistent(el)) return;
-      const was=el.checked; el.checked=false;
-      if (was) el.dispatchEvent(new Event('change',{bubbles:true})); // keep red shading in sync
-    });
-  }
-  let applying=false;
-  function applyWeekData(grid, data){
-    applying=true;
-    clearWeekGrid(grid);
-    const jobs=Q(grid, jobSel), helps=Q(grid, helperSel), pto=Q(grid, ptoSel), hpto=Q(grid, helperPto);
+
+  function applyWeekData(data){
+    clearWeekGrid();
+    const jobs   = Array.from(grid.querySelectorAll('.job-input'));
+    const helps  = Array.from(grid.querySelectorAll('.helper-input'));
+    const pto    = Array.from(grid.querySelectorAll('.pto-box'));
+    const hpto   = Array.from(grid.querySelectorAll('.helper-pto-box'));
     Object.entries(data||{}).forEach(([k,v])=>{
       const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/); if(!m) return;
-      const dayIdx=DAYS.indexOf(m[1]), row=parseInt(m[2],10)-1, idx=row*5+dayIdx;
-      if(m[3]==='job'      && jobs[idx] && !isPersistent(jobs[idx]))   jobs[idx].value   = String(v);
-      if(m[3]==='helper'   && helps[idx]&& !isPersistent(helps[idx]))  helps[idx].value  = String(v);
-      if(m[3]==='pto'      && pto[idx]  && !isPersistent(pto[idx]))  { pto[idx].checked  = !!v; pto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
-      if(m[3]==='helperPto'&& hpto[idx] && !isPersistent(hpto[idx])) { hpto[idx].checked = !!v; hpto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+      const idx = (parseInt(m[2],10)-1)*5 + (['Mon','Tue','Wed','Thu','Fri'].indexOf(m[1]));
+      if (m[3]==='job'      && jobs[idx])  jobs[idx].value   = String(v);
+      if (m[3]==='helper'   && helps[idx]) helps[idx].value  = String(v);
+      if (m[3]==='pto'      && pto[idx])  { pto[idx].checked = !!v; pto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
+      if (m[3]==='helperPto'&& hpto[idx]) { hpto[idx].checked= !!v; hpto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
     });
-    applying=false;
   }
 
-  // --- API (direct to Netlify functions) ---
+  // ---------- persistent (optional) ----------
+  function collectPersistent(){
+    const out={};
+    grid.querySelectorAll('.lead-input').forEach((el,i)=> el.value && (out[`Lead:${pad2(i+1)}`]=el.value));
+    grid.querySelectorAll('.apprentice-input').forEach((el,i)=> el.value && (out[`Apprentice:${pad2(i+1)}`]=el.value));
+    document.querySelectorAll('.floater-name').forEach((el,i)=> el.value && (out[`Floater:${pad2(i+1)}`]=el.value));
+    document.querySelectorAll('.todo-job').forEach((el,i)=> el.value && (out[`Todo:${pad2(i+1)}`]=el.value));
+    return out;
+  }
+  function applyPersistent(data){
+    const put=(sel,prefix,root=document)=> {
+      const list = Array.from(root.querySelectorAll(sel));
+      Object.entries(data||{}).forEach(([k,v])=>{
+        const m=k.match(new RegExp(`^${prefix}:(\\d{2})$`)); if(!m) return;
+        const idx=parseInt(m[1],10)-1; if (list[idx]) list[idx].value = String(v);
+      });
+    };
+    put('.lead-input','Lead',grid);
+    put('.apprentice-input','Apprentice',grid);
+    put('.floater-name','Floater',document);
+    put('.todo-job','Todo',document);
+  }
+
+  // ---------- API (Netlify functions) ----------
   async function apiLoadWeek(key){
     const r = await fetch(`/.netlify/functions/load-week?weekKey=${encodeURIComponent(key)}`);
     const j = await r.json().catch(()=> ({}));
-    log('load-week', {status:r.status, ok:r.ok, key});
+    addLog('load-week', {status:r.status, ok:r.ok, key});
     return (r.ok && j && j.ok) ? (j.data||{}) : {};
   }
   async function apiSaveWeek(key, data){
@@ -425,62 +298,116 @@ document.addEventListener('DOMContentLoaded', () => {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ weekKey:key, data })
     });
-    const t = await r.text().catch(()=> ''); log('save-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
+    const t = await r.text().catch(()=> ''); addLog('save-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
   async function apiWipeWeek(key){
     const r = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ weekKey:key, wipe:true })
     });
-    const t = await r.text().catch(()=> ''); log('wipe-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
+    const t = await r.text().catch(()=> ''); addLog('wipe-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
 
-  // --- bind grid events (autosave scoped to grid) ---
-  function bindGrid(grid){
-    let t=null; const deb=(fn)=>{ clearTimeout(t); t=setTimeout(fn, 800); };
-    grid.addEventListener('input', (e)=>{
-      if (applying) return;
-      if (e.target.matches(jobSel) || e.target.matches(helperSel))
-        deb(()=> apiSaveWeek(state.key(), collectWeekFlat(grid)));
-    }, {passive:true});
-    grid.addEventListener('change', (e)=>{
-      if (applying) return;
-      if (e.target.matches(ptoSel) || e.target.matches(helperPto))
-        deb(()=> apiSaveWeek(state.key(), collectWeekFlat(grid)));
-    }, {passive:true});
+  // optional persistent endpoints (ignore errors if you don't have them)
+  async function apiSavePersistent(data){
+    try{
+      const r = await fetch('/.netlify/functions/save-persistent', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ data })
+      });
+      addLog('save-persistent', {status:r.status, ok:r.ok});
+    }catch{}
+  }
+  async function apiLoadPersistent(){
+    try{
+      const r = await fetch('/.netlify/functions/load-persistent');
+      const j = await r.json().catch(()=> ({}));
+      if (j && j.ok) applyPersistent(j.data||{});
+      addLog('load-persistent', {status:r.status, ok:r.ok});
+    }catch{}
   }
 
-  // --- Reset: ONLY grid + wipe THIS week (persistent untouched) ---
-  function bindReset(grid){
-    document.getElementById('resetBtn')?.addEventListener('click', (e)=>{
-      e.preventDefault();
-      clearWeekGrid(grid);
-      apiWipeWeek(state.key());
-    });
-  }
+  // ---------- autosave wiring ----------
+  let tWeek=null, tPersist=null;
+  const deb = (slot, fn)=>{ clearTimeout(slot.id); slot.id=setTimeout(fn, 800); return slot; };
 
-  // --- week navigation + calendar ---
-  function bindNav(){
-    document.getElementById('prevWeekBtn')?.addEventListener('click',(e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()-7); state.setMonday(d); });
-    document.getElementById('nextWeekBtn')?.addEventListener('click',(e)=>{ e.preventDefault(); const d=new Date(state.monday); d.setDate(d.getDate()+7); state.setMonday(d); });
-    document.getElementById('todayBtn')   ?.addEventListener('click',(e)=>{ e.preventDefault(); state.setMonday(new Date()); });
-    const picker = document.getElementById('calendar') || document.getElementById('weekPicker') || document.querySelector('input[type="date"]');
-    if (picker) picker.addEventListener('change', (e)=> window.hvacSetWeek(e.target.value));
-    document.addEventListener('click', (e)=>{
-      const cell = e.target.closest('[data-date]'); if (cell) window.hvacSetWeek(cell.getAttribute('data-date'));
-    });
-  }
+  grid.addEventListener('input', (e)=>{
+    const el=e.target;
+    if (el.classList.contains('job-input') || el.classList.contains('helper-input')) {
+      tWeek = deb(tWeek, ()=> apiSaveWeek(state.key(), collectWeekFlat()));
+    }
+    if (el.classList.contains('lead-input') || el.classList.contains('apprentice-input')) {
+      tPersist = deb(tPersist, ()=> apiSavePersistent(collectPersistent()));
+    }
+  }, {passive:true});
 
-  // --- boot: detect grid → bind → load displayed week ---
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    const grid = getGrid();
-    if (!grid) { log('grid not found: wrap the Mon–Fri area in <div id="week-grid"> or add data-week-grid="1"'); return; }
-    bindGrid(grid);
-    bindReset(grid);
-    bindNav();
-    const data = await apiLoadWeek(state.key());
-    applyWeekData(grid, data);
+  grid.addEventListener('change', (e)=>{
+    const el=e.target;
+    if (el.classList.contains('pto-box') || el.classList.contains('helper-pto-box')) {
+      tWeek = deb(tWeek, ()=> apiSaveWeek(state.key(), collectWeekFlat()));
+    }
+  }, {passive:true});
+
+  document.querySelectorAll('.floater-name, .todo-job').forEach(el=>{
+    el.addEventListener('input', ()=> { tPersist = deb(tPersist, ()=> apiSavePersistent(collectPersistent())); }, {passive:true});
   });
+
+  // ---------- calendar ----------
+  let calOffset = 0;
+  const calWrap = document.getElementById('calendarContainer');
+  function renderCalendar(referenceDate){
+    const ref = new Date(referenceDate); ref.setMonth(ref.getMonth()+calOffset);
+    const y=ref.getFullYear(), m=ref.getMonth();
+    const first=new Date(y,m,1), last=new Date(y,m+1,0);
+    const monthName = ref.toLocaleString('default',{month:'long'});
+    let html = `<div class="calendar-header">
+      <span class="calendar-nav" id="calPrev">‹</span>
+      <span>${monthName} ${y}</span>
+      <span class="calendar-nav" id="calNext">›</span>
+    </div><table><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr><tr>`;
+    for (let i=0;i<first.getDay();i++) html += "<td></td>";
+    for (let d=1; d<=last.getDate(); d++){
+      const dt = new Date(y,m,d);
+      html += `<td data-ymd="${y}-${m+1}-${d}">${d}</td>`;
+      if (dt.getDay()===6) html += "</tr><tr>";
+    }
+    html += "</tr></table>";
+    calWrap.innerHTML = html;
+    document.getElementById('calPrev').onclick = ()=>{ calOffset -= 1; renderCalendar(referenceDate); };
+    document.getElementById('calNext').onclick = ()=>{ calOffset += 1; renderCalendar(referenceDate); };
+    calWrap.querySelectorAll('td[data-ymd]').forEach(td=>{
+      td.onclick = ()=>{
+        const [Y,M,D] = td.getAttribute('data-ymd').split('-').map(Number);
+        hvacSetWeek(new Date(Y, M-1, D));
+        calWrap.style.display='none'; calOffset=0;
+      };
+    });
+  }
+
+  // ---------- buttons ----------
+  document.getElementById('calendarBtn').onclick = ()=>{
+    const show = calWrap.style.display==='none';
+    calWrap.style.display = show ? 'block' : 'none';
+    if (show) renderCalendar(state.monday);
+  };
+  document.getElementById('prevWeekBtn').onclick = ()=> hvacSetWeek(new Date(state.monday.getTime() - 7*24*60*60*1000));
+  document.getElementById('nextWeekBtn').onclick = ()=> hvacSetWeek(new Date(state.monday.getTime() + 7*24*60*60*1000));
+  document.getElementById('todayBtn').onclick    = ()=> hvacSetWeek(new Date());
+  document.getElementById('resetBtn').onclick    = ()=>{
+    clearWeekGrid();
+    apiWipeWeek(state.key());
+  };
+  document.getElementById('printBtn').onclick    = ()=> window.print();
+
+  // ---------- boot ----------
+  (function init(){
+    renderHeader(state.monday);
+    createGrid();
+    // initial load for displayed week + persistent
+    apiLoadWeek(state.key()).then(applyWeekData);
+    apiLoadPersistent();
+  })();
+
 })();
 </script>
 
