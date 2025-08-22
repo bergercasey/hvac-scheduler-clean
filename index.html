@@ -29,6 +29,9 @@
   .job-input { resize: none; line-height:1.25; }
   .helper-input { color: #0b62ff; }
 
+  /* Important for Pencil drag */
+  .job-input, .helper-input { touch-action: none; -webkit-user-select: none; user-select: none; }
+
   .pto-box, .helper-pto-box { position:absolute; width:14px; height:14px; cursor:pointer; appearance:auto; -webkit-appearance:auto; }
   .pto-box         { top:2px;  right:2px;  accent-color: red; }      /* LEAD PTO (shades cell) */
   .helper-pto-box  { bottom:2px; right:2px; accent-color: #0b62ff; } /* HELPER PTO is BLUE, no shading */
@@ -416,14 +419,15 @@
   };
   document.getElementById('printBtn').onclick    = ()=> window.print();
 
-  /* ---------------- Tap‑copy & Drag‑paste (row only) ---------------- */
+  /* ---------------- Tap‑copy & Drag‑paste (row only) — Finger + Pencil ---------------- */
   let copyActive = false;
   let copyField = null;    // 'job' | 'helper'
   let copyValue = '';
   let copyRow = -1;
   let visitedCols = new Set();
   let lastTapTime = 0;
-  let touchId = null;
+  let touchId = null;      // for touch
+  let pointerId = null;    // for pencil/mouse
 
   function startCopyMode(fromEl){
     copyActive = true;
@@ -432,50 +436,44 @@
     copyRow   = parseInt(fromEl.dataset.row,10);
     visitedCols.clear();
 
-    // visual hints on the row
     grid.querySelectorAll(`.cell[data-row="${copyRow}"]`).forEach(c=> c.classList.add('copy-row-hint'));
     fromEl.classList.add('copy-field-hint');
 
     addLog('copy-start', {row: copyRow, field: copyField, value: copyValue});
   }
   function endCopyMode(){
-    copyActive = false; copyField=null; copyValue=''; copyRow=-1; visitedCols.clear(); touchId=null;
+    copyActive = false; copyField=null; copyValue=''; copyRow=-1; visitedCols.clear(); touchId=null; pointerId=null;
     grid.querySelectorAll('.copy-row-hint').forEach(c=> c.classList.remove('copy-row-hint'));
     grid.querySelectorAll('.copy-field-hint').forEach(el=> el.classList.remove('copy-field-hint'));
     addLog('copy-end');
   }
-
   function maybePasteAtPoint(x, y){
     if (!copyActive) return;
     const el = document.elementFromPoint(x, y);
     if (!el) return;
-    // find the cell under the point
     const cell = el.closest?.('.cell');
     if (!cell) return;
     const row = parseInt(cell.dataset.row,10);
     if (row !== copyRow) return; // straight across only
-
     const col = parseInt(cell.dataset.col,10);
-    if (visitedCols.has(col)) return; // already applied
+    if (visitedCols.has(col)) return;
     visitedCols.add(col);
 
-    // target input in that cell for the same field
     const target = cell.querySelector(copyField === 'job' ? '.job-input' : '.helper-input');
     if (target){
       target.value = copyValue;
-      // trigger input so autosave captures it
       target.dispatchEvent(new Event('input', {bubbles:true}));
       addLog('copy-paste', {row, col, field: copyField});
     }
   }
 
-  // Touch (iPad / Pencil)
+  /* ----- Touch (finger) double‑tap + drag ----- */
   grid.addEventListener('touchstart', (e)=>{
     const t = e.target;
     if (!(t.classList.contains('job-input') || t.classList.contains('helper-input'))) return;
     const now = Date.now();
     if (now - lastTapTime < 300){ // double-tap
-      e.preventDefault();
+      e.preventDefault(); // important to stop text selection + scroll
       startCopyMode(t);
       const touch = e.changedTouches[0];
       touchId = touch.identifier;
@@ -495,20 +493,29 @@
   grid.addEventListener('touchend', endTouch, {passive:true});
   grid.addEventListener('touchcancel', endTouch, {passive:true});
 
-  // Mouse support (desktop testing)
-  grid.addEventListener('dblclick', (e)=>{
+  /* ----- Pointer (Apple Pencil / mouse) double‑tap + drag ----- */
+  grid.addEventListener('pointerdown', (e)=>{
     const t = e.target;
-    if (t.classList.contains('job-input') || t.classList.contains('helper-input')){
+    if (!(t.classList.contains('job-input') || t.classList.contains('helper-input'))) return;
+    const now = Date.now();
+    if (now - lastTapTime < 300){ // double-tap (pencil/mouse)
+      e.preventDefault();
       startCopyMode(t);
+      pointerId = e.pointerId;
       visitedCols.add(parseInt(t.dataset.col,10));
     }
-  });
-  document.addEventListener('mousemove', (e)=>{
-    if (copyActive) maybePasteAtPoint(e.clientX, e.clientY);
-  });
-  document.addEventListener('mouseup', ()=>{
-    if (copyActive) endCopyMode();
-  });
+    lastTapTime = now;
+  }, {passive:false});
+
+  grid.addEventListener('pointermove', (e)=>{
+    if (!copyActive || (pointerId !== null && e.pointerId !== pointerId)) return;
+    maybePasteAtPoint(e.clientX, e.clientY);
+  }, {passive:true});
+
+  const endPointer = (e)=>{ if (copyActive && (pointerId===null || e.pointerId===pointerId)) endCopyMode(); };
+  grid.addEventListener('pointerup', endPointer, {passive:true});
+  grid.addEventListener('pointercancel', endPointer, {passive:true});
+  grid.addEventListener('lostpointercapture', endPointer, {passive:true});
 
   /* ---------------- Load/Refresh ---------------- */
   async function loadWeekFor(monday){
@@ -517,16 +524,4 @@
     applyWeekData(data);
   }
 
-  /* ---------------- Init ---------------- */
-  (function init(){
-    renderHeader(state.monday);
-    createGrid();
-    apiLoadWeek(state.key()).then(applyWeekData);
-    apiLoadPersistent();
-  })();
-
-})();
-</script>
-
-</body>
-</html>
+  /* ---------------- Init ----------------
