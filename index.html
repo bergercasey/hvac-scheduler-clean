@@ -6,26 +6,25 @@
 <title>HVAC Weekly Schedule</title>
 <style>
   :root{
-    /* tweak these to taste */
-    --page-max: 1100px;
-    --left-col: 160px;
-    --cell-min-h: 72px;      /* row height */
-    --job-min-h: 38px;       /* ~2 lines */
-    --helper-h: 26px;        /* 1 line  */
+    /* Tweak these to taste */
+    --page-max: 1240px;        /* ⬅ wider overall */
+    --left-col: 180px;         /* ⬅ wider crew column */
+    --cell-min-h: 72px;
+    --job-min-h: 38px;
+    --helper-h: 26px;
     --grid-border:#cfcfcf;
     --hdr-bg:#f5f5f5;
     --light-red: rgba(255,0,0,0.10);
+    --blue: #0a84ff;           /* iOS blue */
+    --red:  #c00;
   }
 
-  /* page */
   html,body{background:#fff}
   body{font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;margin:0}
   .wrap{max-width:var(--page-max);margin:16px auto 28px;padding:0 12px}
 
-  /* header */
   h1{margin:6px 0 8px;text-align:center;font-size:22px;font-weight:700}
 
-  /* toolbar (centered below header) */
   .toolbar{display:flex;justify-content:center;align-items:center;gap:8px;margin:8px 0 12px}
   .btn{font-size:14px;padding:6px 10px;border:1px solid #bbb;background:#fff;border-radius:6px;cursor:pointer}
   .btn:active{transform:translateY(1px)}
@@ -40,47 +39,36 @@
   /* main grid */
   .grid{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border)}
   .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);position:relative;padding:6px;min-height:var(--cell-min-h);background:#fff}
-  .grid>:nth-child(-n+6){border-top:0}    /* remove top border on first row */
-  .grid>:nth-child(6n){border-right:0}    /* remove right border on Friday */
+  .grid>:nth-child(-n+6){border-top:0}
+  .grid>:nth-child(6n){border-right:0}
 
-  /* left column (Crew Lead + Apprentice) */
   .leadcell{display:flex;flex-direction:column;gap:6px}
-  .lead-input,.apprentice-input{
-    width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff
-  }
+  .lead-input,.apprentice-input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
   .apprentice-input{height:28px}
 
-  /* day cells (no bubbly look) */
-  .job{
-    width:100%;min-height:var(--job-min-h);max-height:54px;border:1px solid #bbb;border-radius:4px;
-    padding:6px;font-size:14px;resize:vertical;background:#fff
-  }
-  .helper{
-    width:100%;height:var(--helper-h);border:1px solid #bbb;border-radius:4px;
-    padding:4px 6px;font-size:14px;margin-top:4px;background:#fff
-  }
+  .job{width:100%;min-height:var(--job-min-h);max-height:54px;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;resize:vertical;background:#fff}
+  .helper{width:100%;height:var(--helper-h);border:1px solid #bbb;border-radius:4px;padding:4px 6px;font-size:14px;margin-top:4px;background:#fff}
   .helper::placeholder{opacity:.7}
 
-  /* PTO: helper top-right (red check), crew bottom-right square */
-  .pto-top{position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:4px;font-size:12px}
-  .pto-top input{width:14px;height:14px;accent-color:#c00}
+  /* PTO: helper checkbox (top-right, blue), crew square (bottom-right, red) — no labels */
+  .pto-top{position:absolute;top:6px;right:6px}
+  .pto-top input{width:14px;height:14px;accent-color:var(--blue)} /* ⬅ blue helper PTO */
   .pto-square{position:absolute;right:6px;bottom:6px;width:16px;height:16px;border:1px solid #900;border-radius:3px;display:flex;align-items:center;justify-content:center}
-  .pto-square input{width:14px;height:14px;margin:0;accent-color:#c00}
+  .pto-square input{width:14px;height:14px;margin:0;accent-color:var(--red)}          /* ⬅ red crew PTO */
   .shade{background:var(--light-red)}
 
-  /* bottom: To‑dos (75%) left, Floaters (25%) right — aligned with grid width */
+  /* bottom: Floaters (25%) LEFT, To‑dos (75%) RIGHT */
   .bottom-wrap{display:flex;gap:12px;align-items:flex-start;margin-top:12px}
-  .todo{flex:3;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
   .floaters{flex:1;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
+  .todo{flex:3;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
   .section-title{font-weight:600;margin-bottom:6px}
   .todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .todo-grid input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
   .floater-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .floater-row input[type="text"]{flex:1;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
-  .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:#c00}
+  .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--red)}
   .floater-assigned{background:var(--light-red);border-radius:4px;padding:2px}
 
-  /* on‑page log for iPad */
   .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden;background:#fff}
   .log h3{margin:0;padding:8px 10px;background:var(--hdr-bg);font-size:14px}
   .logpre{margin:0;padding:8px 10px;height:140px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#fff}
@@ -96,7 +84,6 @@
 <div class="wrap">
   <h1>HVAC Weekly Schedule</h1>
 
-  <!-- centered toolbar -->
   <div class="toolbar">
     <button class="btn calendar-btn" id="openCalendar" title="Pick a date">📅</button>
     <button class="btn" id="prevWeek">Previous Week</button>
@@ -106,28 +93,25 @@
     <button class="btn" id="printBtn">Print</button>
   </div>
 
-  <!-- compact weekday header -->
   <div class="weekbar">
     <div class="crew-lead-head">Crew Lead</div>
     <div id="d0"></div><div id="d1"></div><div id="d2"></div><div id="d3"></div><div id="d4"></div>
   </div>
 
-  <!-- main grid -->
   <div class="grid" id="grid"></div>
 
-  <!-- bottom 75/25 -->
+  <!-- ⬇ Flipped: Floaters LEFT, To‑dos RIGHT -->
   <div class="bottom-wrap">
-    <div class="todo">
-      <div class="section-title">Need to be done jobs (12)</div>
-      <div class="todo-grid" id="todoGrid"></div>
-    </div>
     <div class="floaters">
       <div class="section-title">Floaters (10)</div>
       <div id="floatersList"></div>
     </div>
+    <div class="todo">
+      <div class="section-title">Need to be done jobs (12)</div>
+      <div class="todo-grid" id="todoGrid"></div>
+    </div>
   </div>
 
-  <!-- visible log -->
   <div class="log">
     <h3>Log</h3>
     <pre class="logpre" id="log"></pre>
@@ -144,19 +128,16 @@
 
 <script>
 (() => {
-  /* ===== CONFIG ===== */
   const CREWS=12, DAYS=5;
-  const STORAGE_MODE='local';             // 'local' now, switch to 'api' later
-  const API_BASE='/.netlify/functions';   // change if needed
+  const STORAGE_MODE='local';
+  const API_BASE='/.netlify/functions';
   const LOG=(tag,p)=>{const L=document.getElementById('log');if(!L)return;const t=new Date().toLocaleTimeString();L.textContent+=`[${t}] ${tag} ${p?JSON.stringify(p):""}\n`;L.scrollTop=L.scrollHeight};
 
-  /* ===== STATE ===== */
   let currentMonday=getMonday(new Date());
   let weekData=blankWeek();
   let persistent=blankPersistent();
   let savingWeek=false,savingPersistent=false;
 
-  /* ===== UTIL ===== */
   function getMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const day=x.getDay();x.setDate(x.getDate()+(day===0?-6:1-day));x.setHours(0,0,0,0);return x}
   function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
   function fmtDay(date){return `${date.toLocaleDateString(undefined,{weekday:'short'})} ${(date.getMonth()+1)}/${date.getDate()}`}
@@ -171,7 +152,6 @@
   function blankPersistent(){return{crewLeads:Array(CREWS).fill(""),apprentices:Array(CREWS).fill(""),floaters:Array(10).fill(""),todos:Array(12).fill("")}}
   const debounce=(fn,ms=220)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
 
-  /* ===== RENDER ===== */
   function renderHeader(){for(let c=0;c<DAYS;c++){document.getElementById('d'+c).textContent=fmtDay(addDays(currentMonday,c))}}
 
   function makeCell(r,c){
@@ -185,13 +165,13 @@
     helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||"";
     helper.addEventListener('input',(e)=>{weekData.helpers[r][c]=e.target.value; LOG('helper',{r,c,val:e.target.value}); saveWeekDeb();});
 
-    // helper PTO (top‑right)
+    // Helper PTO (top-right) — NO TEXT LABEL
     const top=document.createElement('div'); top.className='pto-top';
     const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.checked=!!weekData.helperPTO[r][c];
     hcb.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
-    top.appendChild(hcb); top.appendChild(document.createTextNode('H-PTO'));
+    top.appendChild(hcb);
 
-    // crew PTO (bottom‑right small square)
+    // Crew PTO (bottom-right red square)
     const sq=document.createElement('div'); sq.className='pto-square';
     const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.checked=!!weekData.crewPTO[r][c];
     ccb.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
@@ -209,7 +189,6 @@
   function renderGrid(){
     const g=document.getElementById('grid'); g.innerHTML="";
     for(let r=0;r<CREWS;r++){
-      // left column
       const lead=document.createElement('div'); lead.className='leadcell';
       const leadIn=document.createElement('input'); leadIn.className='lead-input'; leadIn.placeholder='Crew Lead'; leadIn.value=persistent.crewLeads[r]||"";
       leadIn.dataset.r=r; leadIn.addEventListener('input',(e)=>{persistent.crewLeads[r]=e.target.value; LOG('crew-lead',{r,val:e.target.value}); savePersistentDeb();});
@@ -218,18 +197,11 @@
       lead.appendChild(leadIn); lead.appendChild(appr);
       g.appendChild(lead);
 
-      // 5 day cells
       for(let c=0;c<DAYS;c++){ g.appendChild(makeCell(r,c)); }
     }
   }
 
   function renderBottom(){
-    const tg=document.getElementById('todoGrid'); tg.innerHTML="";
-    for(let i=0;i<persistent.todos.length;i++){
-      const t=document.createElement('input'); t.type='text'; t.placeholder=`Job ${i+1}`; t.value=persistent.todos[i]||"";
-      t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.todos[i]=e.target.value; LOG('todo',{i,val:e.target.value}); savePersistentDeb();});
-      tg.appendChild(t);
-    }
     const fl=document.getElementById('floatersList'); fl.innerHTML="";
     for(let i=0;i<persistent.floaters.length;i++){
       const row=document.createElement('div'); row.className='floater-row';
@@ -238,9 +210,14 @@
       t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.floaters[i]=e.target.value; LOG('floater',{i,val:e.target.value}); savePersistentDeb();});
       row.appendChild(cb); row.appendChild(t); fl.appendChild(row);
     }
+    const tg=document.getElementById('todoGrid'); tg.innerHTML="";
+    for(let i=0;i<persistent.todos.length;i++){
+      const t=document.createElement('input'); t.type='text'; t.placeholder=`Job ${i+1}`; t.value=persistent.todos[i]||"";
+      t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.todos[i]=e.target.value; LOG('todo',{i,val:e.target.value}); savePersistentDeb();});
+      tg.appendChild(t);
+    }
   }
 
-  /* ===== SAVE/LOAD ===== */
   const saveWeekDeb=debounce(saveWeek,220);
   const savePersistentDeb=debounce(savePersistent,220);
 
@@ -303,17 +280,15 @@
     savingPersistent=false;
   }
 
-  /* ===== NAV + CALENDAR ===== */
   function goToMonday(d){
     currentMonday=getMonday(d);
     renderHeader();
-    weekData=blankWeek();      // visual reset
+    weekData=blankWeek();
     renderGrid();
     loadWeek().then(()=>renderGrid());
     document.dispatchEvent(new CustomEvent('weekchange',{detail:{monday:currentMonday}}));
   }
 
-  // buttons
   const $=id=>document.getElementById(id);
   $('prevWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday,-7)));
   $('nextWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday, 7)));
@@ -321,7 +296,6 @@
   $('resetWeek').addEventListener('click',()=>{weekData=blankWeek();renderGrid();saveWeek();LOG('reset-week',{key:weekKey(currentMonday)})});
   $('printBtn').addEventListener('click',()=>window.print());
 
-  // calendar open/close
   const backdrop=$('calBackdrop'), datePicker=$('datePicker');
   $('openCalendar').addEventListener('click',()=>{
     backdrop.style.display='flex';
@@ -334,7 +308,6 @@
     backdrop.style.display='none';
   });
 
-  /* ===== INIT ===== */
   window.addEventListener('DOMContentLoaded', async ()=>{
     renderHeader(); renderGrid(); renderBottom();
     await loadPersistent(); await loadWeek();
