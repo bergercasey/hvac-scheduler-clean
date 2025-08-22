@@ -175,7 +175,6 @@
   function createGrid(){
     grid.innerHTML = '';
     for(let row=0; row<12; row++){
-      // Crew Lead / Apprentice (persistent)
       const crew = document.createElement('div');
       crew.className = 'crew-label';
       crew.setAttribute('data-persistent','1');
@@ -185,7 +184,6 @@
       `;
       grid.appendChild(crew);
 
-      // 5 day cells
       for(let col=0; col<5; col++){
         const cell = document.createElement('div');
         cell.className = 'cell';
@@ -205,7 +203,6 @@
         pto.type = 'checkbox';
         pto.className = 'pto-box';
         pto.addEventListener('change', ()=>{
-          // LEAD PTO shades the cell
           cell.classList.toggle('highlight-red', pto.checked);
         });
         cell.appendChild(pto);
@@ -222,8 +219,9 @@
 
   /* ---------------- Clear/Collect/Apply ---------------- */
   function clearWeekGrid(){
-    // clear text
-    grid.querySelectorAll('.cell textarea, .cell input[type="text"]').forEach(el => { el.value=''; });
+    // clear text explicitly
+    grid.querySelectorAll('.cell .job-input').forEach(el => el.value='');
+    grid.querySelectorAll('.cell .helper-input').forEach(el => el.value='');
     // clear checks
     grid.querySelectorAll('.cell .pto-box, .cell .helper-pto-box').forEach(cb => {
       const wasLead = cb.classList.contains('pto-box') && cb.checked;
@@ -232,7 +230,8 @@
     });
   }
 
-  function collectWeekFlat(){
+  // FULL snapshot (includes blanks) so clearing overwrites server values
+  function collectWeekFull(){
     const jobs   = Array.from(grid.querySelectorAll('.job-input'));
     const helps  = Array.from(grid.querySelectorAll('.helper-input'));
     const pto    = Array.from(grid.querySelectorAll('.pto-box'));
@@ -240,10 +239,10 @@
     const out={}, max=Math.max(jobs.length, helps.length, pto.length, hpto.length);
     for (let i=0;i<max;i++){
       const row=Math.floor(i/5)+1, day=DAYS[i%5], r=pad2(row), base=`${day}:${r}`;
-      if (jobs[i]  && jobs[i].value)  out[`${base}:job`]       = jobs[i].value;
-      if (helps[i] && helps[i].value) out[`${base}:helper`]    = helps[i].value;
-      if (pto[i]   && pto[i].checked) out[`${base}:pto`]       = true;
-      if (hpto[i]  && hpto[i].checked)out[`${base}:helperPto`] = true;
+      out[`${base}:job`]       = jobs[i]  ? (jobs[i].value  || '') : '';
+      out[`${base}:helper`]    = helps[i] ? (helps[i].value || '') : '';
+      out[`${base}:pto`]       = !!(pto[i]   && pto[i].checked);
+      out[`${base}:helperPto`] = !!(hpto[i]  && hpto[i].checked);
     }
     return out;
   }
@@ -257,20 +256,20 @@
     Object.entries(data||{}).forEach(([k,v])=>{
       const m=k.match(/^(Mon|Tue|Wed|Thu|Fri):(\d{2}):(job|helper|pto|helperPto)$/); if(!m) return;
       const idx = (parseInt(m[2],10)-1)*5 + (['Mon','Tue','Wed','Thu','Fri'].indexOf(m[1]));
-      if (m[3]==='job'      && jobs[idx])  jobs[idx].value   = String(v);
-      if (m[3]==='helper'   && helps[idx]) helps[idx].value  = String(v);
+      if (m[3]==='job'      && jobs[idx])  jobs[idx].value   = String(v||'');
+      if (m[3]==='helper'   && helps[idx]) helps[idx].value  = String(v||'');
       if (m[3]==='pto'      && pto[idx])  { pto[idx].checked = !!v; pto[idx].dispatchEvent(new Event('change',{bubbles:true})); }
-      if (m[3]==='helperPto'&& hpto[idx]) { hpto[idx].checked= !!v; /* blue check, no shading */ }
+      if (m[3]==='helperPto'&& hpto[idx]) { hpto[idx].checked= !!v; }
     });
   }
 
   /* ---------------- Persistent ---------------- */
   function collectPersistent(){
     const out={};
-    grid.querySelectorAll('.lead-input').forEach((el,i)=> el.value && (out[`Lead:${pad2(i+1)}`]=el.value));
-    grid.querySelectorAll('.apprentice-input').forEach((el,i)=> el.value && (out[`Apprentice:${pad2(i+1)}`]=el.value));
-    document.querySelectorAll('.floater-name').forEach((el,i)=> el.value && (out[`Floater:${pad2(i+1)}`]=el.value));
-    document.querySelectorAll('.todo-job').forEach((el,i)=> el.value && (out[`Todo:${pad2(i+1)}`]=el.value));
+    grid.querySelectorAll('.lead-input').forEach((el,i)=> out[`Lead:${pad2(i+1)}`]=el.value||'');
+    grid.querySelectorAll('.apprentice-input').forEach((el,i)=> out[`Apprentice:${pad2(i+1)}`]=el.value||'');
+    document.querySelectorAll('.floater-name').forEach((el,i)=> out[`Floater:${pad2(i+1)}`]=el.value||'');
+    document.querySelectorAll('.todo-job').forEach((el,i)=> out[`Todo:${pad2(i+1)}`]=el.value||'');
     return out;
   }
   function applyPersistent(data){
@@ -278,7 +277,7 @@
       const list = Array.from(root.querySelectorAll(sel));
       Object.entries(data||{}).forEach(([k,v])=>{
         const m=k.match(new RegExp(`^${prefix}:(\\d{2})$`)); if(!m) return;
-        const idx=parseInt(m[1],10)-1; if (list[idx]) list[idx].value = String(v);
+        const idx=parseInt(m[1],10)-1; if (list[idx]) list[idx].value = String(v||'');
       });
     };
     put('.lead-input','Lead',grid);
@@ -297,7 +296,7 @@
   async function apiSaveWeek(key, data){
     const r = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ weekKey:key, data })
+      body: JSON.stringify({ weekKey:key, data })  // send FULL snapshot
     });
     const t = await r.text().catch(()=> ''); addLog('save-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
@@ -326,14 +325,14 @@
     }catch{}
   }
 
-  /* ---------------- Autosave (debounced) ---------------- */
+  /* ---------------- Autosave (debounced, full snapshot) ---------------- */
   let tWeek=null, tPersist=null;
-  const deb = (slot, fn)=>{ clearTimeout(slot?.id); const id=setTimeout(fn, 800); return {id}; };
+  const deb = (slot, fn)=>{ clearTimeout(slot?.id); const id=setTimeout(fn, 700); return {id}; };
 
   grid.addEventListener('input', (e)=>{
     const el=e.target;
     if (el.classList.contains('job-input') || el.classList.contains('helper-input')) {
-      tWeek = deb(tWeek, ()=> apiSaveWeek(state.key(), collectWeekFlat()));
+      tWeek = deb(tWeek, ()=> apiSaveWeek(state.key(), collectWeekFull()));
     }
     if (el.classList.contains('lead-input') || el.classList.contains('apprentice-input')) {
       tPersist = deb(tPersist, ()=> apiSavePersistent(collectPersistent()));
@@ -343,7 +342,7 @@
   grid.addEventListener('change', (e)=>{
     const el=e.target;
     if (el.classList.contains('pto-box') || el.classList.contains('helper-pto-box')) {
-      tWeek = deb(tWeek, ()=> apiSaveWeek(state.key(), collectWeekFlat()));
+      tWeek = deb(tWeek, ()=> apiSaveWeek(state.key(), collectWeekFull()));
     }
   }, {passive:true});
 
@@ -358,7 +357,6 @@
   function showCalendar(){
     calWrap.style.display='block';
     renderCalendar(state.monday);
-    // close on outside click
     const outside = (e)=>{ if (!calWrap.contains(e.target) && e.target.id !== 'calendarBtn'){ hideCalendar(); } };
     document.addEventListener('click', outside, {capture:true, once:true});
   }
@@ -390,7 +388,7 @@
       td.onclick = ()=>{
         const [Y,M,D] = td.getAttribute('data-ymd').split('-').map(Number);
         hvacSetWeek(new Date(Y, M-1, D));
-        hideCalendar();                       // CLOSE on selection
+        hideCalendar();
       };
     });
   }
@@ -399,22 +397,22 @@
   document.getElementById('calendarBtn').onclick = ()=>{
     if (calWrap.style.display==='none') showCalendar(); else hideCalendar();
   };
-  document.getElementById('prevWeekBtn').onclick = ()=>{ hideCalendar(); hvacSetWeek(new Date(state.monday.getTime() - 7*24*60*60*1000)); };
-  document.getElementById('nextWeekBtn').onclick = ()=>{ hideCalendar(); hvacSetWeek(new Date(state.monday.getTime() + 7*24*60*60*1000)); };
-  document.getElementById('todayBtn').onclick    = ()=>{ hideCalendar(); hvacSetWeek(new Date()); };
+  document.getElementById('prevWeekBtn').onclick = ()=>{ hideCalendar(); clearWeekGrid(); hvacSetWeek(new Date(state.monday.getTime() - 7*24*60*60*1000)); };
+  document.getElementById('nextWeekBtn').onclick = ()=>{ hideCalendar(); clearWeekGrid(); hvacSetWeek(new Date(state.monday.getTime() + 7*24*60*60*1000)); };
+  document.getElementById('todayBtn').onclick    = ()=>{ hideCalendar(); clearWeekGrid(); hvacSetWeek(new Date()); };
 
   document.getElementById('resetBtn').onclick    = async ()=>{
     hideCalendar();
-    clearWeekGrid();
+    clearWeekGrid();                                // clear UI immediately
     await apiWipeWeek(state.key());                 // erase on server
-    await apiSaveWeek(state.key(), {});             // store empty object to be explicit
+    await apiSaveWeek(state.key(), collectWeekFull()); // save empty snapshot (blanks + false)
     await loadWeekFor(state.monday);                // reload clean slate
   };
   document.getElementById('printBtn').onclick    = ()=> window.print();
 
   /* ---------------- Load/Refresh ---------------- */
   async function loadWeekFor(monday){
-    clearWeekGrid();
+    clearWeekGrid();                                // ensure previous UI is wiped
     const data = await apiLoadWeek(isoWeekKeyFromDate(monday));
     applyWeekData(data);
   }
