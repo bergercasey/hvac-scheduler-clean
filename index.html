@@ -2,66 +2,87 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>HVAC Weekly Schedule</title>
 <style>
   :root{
+    /* tweak these to taste */
+    --page-max: 1100px;
+    --left-col: 160px;
+    --cell-min-h: 72px;      /* row height */
+    --job-min-h: 38px;       /* ~2 lines */
+    --helper-h: 26px;        /* 1 line  */
     --grid-border:#cfcfcf;
-    --header-bg:#f5f5f5;
-    --light-red:rgba(255,0,0,0.1);
-    --maxw:1100px;
+    --hdr-bg:#f5f5f5;
+    --light-red: rgba(255,0,0,0.10);
   }
-  /* page */
-  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:#fff;}
-  .wrap{max-width:var(--maxw);margin:16px auto 32px;padding:0 12px;}
-  h1{margin:6px 0 8px;text-align:center;font-size:22px;font-weight:700;}
 
-  /* toolbar */
-  .toolbar{display:flex;justify-content:center;align-items:center;gap:8px;margin:8px 0 12px;}
-  .btn{font-size:14px;padding:6px 10px;border:1px solid #bbb;background:#fff;border-radius:6px}
+  /* page */
+  html,body{background:#fff}
+  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;margin:0}
+  .wrap{max-width:var(--page-max);margin:16px auto 28px;padding:0 12px}
+
+  /* header */
+  h1{margin:6px 0 8px;text-align:center;font-size:22px;font-weight:700}
+
+  /* toolbar (centered below header) */
+  .toolbar{display:flex;justify-content:center;align-items:center;gap:8px;margin:8px 0 12px}
+  .btn{font-size:14px;padding:6px 10px;border:1px solid #bbb;background:#fff;border-radius:6px;cursor:pointer}
   .btn:active{transform:translateY(1px)}
   .calendar-btn{padding:4px 8px;font-size:18px}
 
-  /* week header */
-  .weekbar{display:grid;grid-template-columns:160px repeat(5,1fr);border:1px solid var(--grid-border);border-bottom:0;background:var(--header-bg)}
-  .weekbar>div{border-right:1px solid var(--grid-border);height:30px;display:flex;align-items:center;justify-content:center;font-size:14px;padding:4px 6px}
+  /* weekday header row */
+  .weekbar{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border);border-bottom:0;background:var(--hdr-bg)}
+  .weekbar>div{height:30px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--grid-border);font-size:14px;padding:0 6px}
   .weekbar>div:last-child{border-right:0}
   .crew-lead-head{font-weight:600}
 
-  /* grid */
-  .grid{display:grid;grid-template-columns:160px repeat(5,1fr);border:1px solid var(--grid-border)}
-  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);position:relative;padding:6px}
-  .grid>:nth-child(-n+6){border-top:0} /* first row under header */
-  .grid>:nth-child(6n){border-right:0}  /* last col */
+  /* main grid */
+  .grid{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border)}
+  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);position:relative;padding:6px;min-height:var(--cell-min-h);background:#fff}
+  .grid>:nth-child(-n+6){border-top:0}    /* remove top border on first row */
+  .grid>:nth-child(6n){border-right:0}    /* remove right border on Friday */
+
+  /* left column (Crew Lead + Apprentice) */
   .leadcell{display:flex;flex-direction:column;gap:6px}
-  .lead-input,.apprentice-input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px}
+  .lead-input,.apprentice-input{
+    width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff
+  }
   .apprentice-input{height:28px}
 
-  /* day cells (compact, no bubbles) */
-  .job{width:100%;min-height:38px;max-height:48px;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;resize:vertical}
-  .helper{width:100%;height:26px;border:1px solid #bbb;border-radius:4px;padding:4px 6px;font-size:14px;margin-top:4px}
+  /* day cells (no bubbly look) */
+  .job{
+    width:100%;min-height:var(--job-min-h);max-height:54px;border:1px solid #bbb;border-radius:4px;
+    padding:6px;font-size:14px;resize:vertical;background:#fff
+  }
+  .helper{
+    width:100%;height:var(--helper-h);border:1px solid #bbb;border-radius:4px;
+    padding:4px 6px;font-size:14px;margin-top:4px;background:#fff
+  }
   .helper::placeholder{opacity:.7}
+
+  /* PTO: helper top-right (red check), crew bottom-right square */
+  .pto-top{position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:4px;font-size:12px}
+  .pto-top input{width:14px;height:14px;accent-color:#c00}
   .pto-square{position:absolute;right:6px;bottom:6px;width:16px;height:16px;border:1px solid #900;border-radius:3px;display:flex;align-items:center;justify-content:center}
   .pto-square input{width:14px;height:14px;margin:0;accent-color:#c00}
-  .pto-top{position:absolute;right:6px;top:6px;display:flex;align-items:center;gap:4px;font-size:12px}
-  .pto-top input{width:14px;height:14px;accent-color:#c00}
   .shade{background:var(--light-red)}
 
-  /* bottom section aligned with grid width (75/25 split) */
+  /* bottom: To‑dos (75%) left, Floaters (25%) right — aligned with grid width */
   .bottom-wrap{display:flex;gap:12px;align-items:flex-start;margin-top:12px}
-  .todo{flex:3;border:1px solid var(--grid-border);border-radius:6px;padding:10px}
-  .floaters{flex:1;border:1px solid var(--grid-border);border-radius:6px;padding:10px}
+  .todo{flex:3;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
+  .floaters{flex:1;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
   .section-title{font-weight:600;margin-bottom:6px}
   .todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .todo-grid input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px}
+  .todo-grid input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
   .floater-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-  .floater-row input[type="text"]{flex:1;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px}
+  .floater-row input[type="text"]{flex:1;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
   .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:#c00}
   .floater-assigned{background:var(--light-red);border-radius:4px;padding:2px}
 
-  /* log */
-  .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden}
-  .log h3{margin:0;padding:8px 10px;background:var(--header-bg);font-size:14px}
+  /* on‑page log for iPad */
+  .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden;background:#fff}
+  .log h3{margin:0;padding:8px 10px;background:var(--hdr-bg);font-size:14px}
   .logpre{margin:0;padding:8px 10px;height:140px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#fff}
 
   /* calendar modal */
@@ -75,6 +96,7 @@
 <div class="wrap">
   <h1>HVAC Weekly Schedule</h1>
 
+  <!-- centered toolbar -->
   <div class="toolbar">
     <button class="btn calendar-btn" id="openCalendar" title="Pick a date">📅</button>
     <button class="btn" id="prevWeek">Previous Week</button>
@@ -84,13 +106,16 @@
     <button class="btn" id="printBtn">Print</button>
   </div>
 
+  <!-- compact weekday header -->
   <div class="weekbar">
     <div class="crew-lead-head">Crew Lead</div>
     <div id="d0"></div><div id="d1"></div><div id="d2"></div><div id="d3"></div><div id="d4"></div>
   </div>
 
+  <!-- main grid -->
   <div class="grid" id="grid"></div>
 
+  <!-- bottom 75/25 -->
   <div class="bottom-wrap">
     <div class="todo">
       <div class="section-title">Need to be done jobs (12)</div>
@@ -102,6 +127,7 @@
     </div>
   </div>
 
+  <!-- visible log -->
   <div class="log">
     <h3>Log</h3>
     <pre class="logpre" id="log"></pre>
@@ -120,9 +146,9 @@
 (() => {
   /* ===== CONFIG ===== */
   const CREWS=12, DAYS=5;
-  const STORAGE_MODE = 'local'; // 'local' (works now) or 'api'
-  const API_BASE='/.netlify/functions'; // if you switch STORAGE_MODE to 'api'
-  const LOG = (tag,p)=>{const L=document.getElementById('log');const t=new Date().toLocaleTimeString();L.textContent+=`[${t}] ${tag} ${p?JSON.stringify(p):""}\n`;L.scrollTop=L.scrollHeight};
+  const STORAGE_MODE='local';             // 'local' now, switch to 'api' later
+  const API_BASE='/.netlify/functions';   // change if needed
+  const LOG=(tag,p)=>{const L=document.getElementById('log');if(!L)return;const t=new Date().toLocaleTimeString();L.textContent+=`[${t}] ${tag} ${p?JSON.stringify(p):""}\n`;L.scrollTop=L.scrollHeight};
 
   /* ===== STATE ===== */
   let currentMonday=getMonday(new Date());
@@ -131,76 +157,106 @@
   let savingWeek=false,savingPersistent=false;
 
   /* ===== UTIL ===== */
-  function getMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const day=x.getDay();const diff=(day===0?-6:1-day);x.setDate(x.getDate()+diff);x.setHours(0,0,0,0);return x}
+  function getMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const day=x.getDay();x.setDate(x.getDate()+(day===0?-6:1-day));x.setHours(0,0,0,0);return x}
   function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
   function fmtDay(date){return `${date.toLocaleDateString(undefined,{weekday:'short'})} ${(date.getMonth()+1)}/${date.getDate()}`}
-  function weekKey(d){const date=new Date(d);date.setHours(0,0,0,0);const jan4=new Date(date.getFullYear(),0,4);const w1=getMonday(jan4);const monday=getMonday(date);const ms=monday-w1;const num=1+Math.round(ms/(7*24*3600*1000));return `${date.getFullYear()}-W${String(num).padStart(2,'0')}`}
+  function weekKey(d){
+    const date=new Date(d);date.setHours(0,0,0,0);
+    const jan4=new Date(date.getFullYear(),0,4);
+    const w1=getMonday(jan4), mon=getMonday(date);
+    const num=1+Math.round((mon-w1)/(7*24*3600*1000));
+    return `${date.getFullYear()}-W${String(num).padStart(2,'0')}`;
+  }
   function blankWeek(){const jobs=[],helpers=[],cpto=[],hpto=[];for(let r=0;r<CREWS;r++){jobs[r]=Array(DAYS).fill("");helpers[r]=Array(DAYS).fill("");cpto[r]=Array(DAYS).fill(false);hpto[r]=Array(DAYS).fill(false)}return{jobs,helpers,crewPTO:cpto,helperPTO:hpto}}
   function blankPersistent(){return{crewLeads:Array(CREWS).fill(""),apprentices:Array(CREWS).fill(""),floaters:Array(10).fill(""),todos:Array(12).fill("")}}
-  const debounce=(fn,ms=250)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}}
+  const debounce=(fn,ms=220)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
 
   /* ===== RENDER ===== */
   function renderHeader(){for(let c=0;c<DAYS;c++){document.getElementById('d'+c).textContent=fmtDay(addDays(currentMonday,c))}}
+
+  function makeCell(r,c){
+    const cell=document.createElement('div'); cell.className='cell'; cell.dataset.r=r; cell.dataset.c=c;
+
+    const job=document.createElement('textarea');
+    job.className='job'; job.placeholder=(c===0?'Job':''); job.value=weekData.jobs[r][c]||"";
+    job.addEventListener('input', (e)=>{weekData.jobs[r][c]=e.target.value; LOG('job',{r,c,val:e.target.value}); saveWeekDeb();});
+
+    const helper=document.createElement('input');
+    helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||"";
+    helper.addEventListener('input',(e)=>{weekData.helpers[r][c]=e.target.value; LOG('helper',{r,c,val:e.target.value}); saveWeekDeb();});
+
+    // helper PTO (top‑right)
+    const top=document.createElement('div'); top.className='pto-top';
+    const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.checked=!!weekData.helperPTO[r][c];
+    hcb.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
+    top.appendChild(hcb); top.appendChild(document.createTextNode('H-PTO'));
+
+    // crew PTO (bottom‑right small square)
+    const sq=document.createElement('div'); sq.className='pto-square';
+    const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.checked=!!weekData.crewPTO[r][c];
+    ccb.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
+    sq.appendChild(ccb);
+
+    if(hcb.checked) cell.classList.add('shade');
+
+    cell.appendChild(job);
+    cell.appendChild(helper);
+    cell.appendChild(top);
+    cell.appendChild(sq);
+    return cell;
+  }
+
   function renderGrid(){
     const g=document.getElementById('grid'); g.innerHTML="";
     for(let r=0;r<CREWS;r++){
       // left column
       const lead=document.createElement('div'); lead.className='leadcell';
-      const leadIn=document.createElement('input'); leadIn.className='lead-input'; leadIn.placeholder='Crew Lead'; leadIn.value=persistent.crewLeads[r]||""; leadIn.dataset.r=r; leadIn.addEventListener('input',onCrewLead); lead.appendChild(leadIn);
-      const appr=document.createElement('input'); appr.className='apprentice-input'; appr.placeholder='Apprentice'; appr.value=persistent.apprentices[r]||""; appr.dataset.r=r; appr.addEventListener('input',onApprentice); lead.appendChild(appr);
+      const leadIn=document.createElement('input'); leadIn.className='lead-input'; leadIn.placeholder='Crew Lead'; leadIn.value=persistent.crewLeads[r]||"";
+      leadIn.dataset.r=r; leadIn.addEventListener('input',(e)=>{persistent.crewLeads[r]=e.target.value; LOG('crew-lead',{r,val:e.target.value}); savePersistentDeb();});
+      const appr=document.createElement('input'); appr.className='apprentice-input'; appr.placeholder='Apprentice'; appr.value=persistent.apprentices[r]||"";
+      appr.dataset.r=r; appr.addEventListener('input',(e)=>{persistent.apprentices[r]=e.target.value; LOG('apprentice',{r,val:e.target.value}); savePersistentDeb();});
+      lead.appendChild(leadIn); lead.appendChild(appr);
       g.appendChild(lead);
-      // days
-      for(let c=0;c<DAYS;c++){
-        const cell=document.createElement('div'); cell.className='cell'; cell.dataset.r=r; cell.dataset.c=c;
-        const job=document.createElement('textarea'); job.className='job'; job.placeholder=(c===0?'Job':''); job.value=weekData.jobs[r][c]||""; job.addEventListener('input',onJob); cell.appendChild(job);
-        const helper=document.createElement('input'); helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||""; helper.addEventListener('input',onHelper); cell.appendChild(helper);
-        // helper PTO (top-right)
-        const top=document.createElement('div'); top.className='pto-top';
-        const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.checked=!!weekData.helperPTO[r][c]; hcb.addEventListener('change',onHelperPTO); top.appendChild(hcb); top.appendChild(document.createTextNode('H-PTO')); cell.appendChild(top);
-        // crew PTO (bottom-right small square)
-        const sq=document.createElement('div'); sq.className='pto-square';
-        const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.checked=!!weekData.crewPTO[r][c]; ccb.addEventListener('change',onCrewPTO); sq.appendChild(ccb); cell.appendChild(sq);
-        if(hcb.checked) cell.classList.add('shade'); else cell.classList.remove('shade');
-        g.appendChild(cell);
-      }
+
+      // 5 day cells
+      for(let c=0;c<DAYS;c++){ g.appendChild(makeCell(r,c)); }
     }
   }
+
   function renderBottom(){
     const tg=document.getElementById('todoGrid'); tg.innerHTML="";
-    for(let i=0;i<persistent.todos.length;i++){const t=document.createElement('input'); t.type='text'; t.placeholder=`Job ${i+1}`; t.value=persistent.todos[i]||""; t.dataset.i=i; t.addEventListener('input',onTodo); tg.appendChild(t)}
+    for(let i=0;i<persistent.todos.length;i++){
+      const t=document.createElement('input'); t.type='text'; t.placeholder=`Job ${i+1}`; t.value=persistent.todos[i]||"";
+      t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.todos[i]=e.target.value; LOG('todo',{i,val:e.target.value}); savePersistentDeb();});
+      tg.appendChild(t);
+    }
     const fl=document.getElementById('floatersList'); fl.innerHTML="";
-    for(let i=0;i<persistent.floaters.length;i++){const row=document.createElement('div'); row.className='floater-row';
+    for(let i=0;i<persistent.floaters.length;i++){
+      const row=document.createElement('div'); row.className='floater-row';
       const cb=document.createElement('input'); cb.type='checkbox'; cb.addEventListener('change',()=>row.classList.toggle('floater-assigned',cb.checked));
-      const t=document.createElement('input'); t.type='text'; t.placeholder=`Floater ${i+1}`; t.value=persistent.floaters[i]||""; t.dataset.i=i; t.addEventListener('input',onFloater); row.appendChild(cb); row.appendChild(t); fl.appendChild(row)}
+      const t=document.createElement('input'); t.type='text'; t.placeholder=`Floater ${i+1}`; t.value=persistent.floaters[i]||"";
+      t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.floaters[i]=e.target.value; LOG('floater',{i,val:e.target.value}); savePersistentDeb();});
+      row.appendChild(cb); row.appendChild(t); fl.appendChild(row);
+    }
   }
 
-  /* ===== EVENTS (autosave) ===== */
-  const saveWeekDeb=debounce(saveWeek,250);
-  const savePersDeb=debounce(savePersistent,250);
+  /* ===== SAVE/LOAD ===== */
+  const saveWeekDeb=debounce(saveWeek,220);
+  const savePersistentDeb=debounce(savePersistent,220);
 
-  function onJob(e){const cell=e.target.closest('.cell');const r=+cell.dataset.r,c=+cell.dataset.c;weekData.jobs[r][c]=e.target.value;LOG('job',{r,c,val:e.target.value});saveWeekDeb()}
-  function onHelper(e){const cell=e.target.closest('.cell');const r=+cell.dataset.r,c=+cell.dataset.c;weekData.helpers[r][c]=e.target.value;LOG('helper',{r,c,val:e.target.value});saveWeekDeb()}
-  function onCrewPTO(e){const cell=e.target.closest('.cell');const r=+cell.dataset.r,c=+cell.dataset.c;weekData.crewPTO[r][c]=e.target.checked;LOG('pto-crew',{r,c,checked:e.target.checked});saveWeekDeb()}
-  function onHelperPTO(e){const cell=e.target.closest('.cell');const r=+cell.dataset.r,c=+cell.dataset.c;weekData.helperPTO[r][c]=e.target.checked;cell.classList.toggle('shade',e.target.checked);LOG('pto-helper',{r,c,checked:e.target.checked});saveWeekDeb()}
-  function onCrewLead(e){const r=+e.target.dataset.r;persistent.crewLeads[r]=e.target.value;LOG('crew-lead',{r,val:e.target.value});savePersDeb()}
-  function onApprentice(e){const r=+e.target.dataset.r;persistent.apprentices[r]=e.target.value;LOG('apprentice',{r,val:e.target.value});savePersDeb()}
-  function onFloater(e){const i=+e.target.dataset.i;persistent.floaters[i]=e.target.value;LOG('floater',{i,val:e.target.value});savePersDeb()}
-  function onTodo(e){const i=+e.target.dataset.i;persistent.todos[i]=e.target.value;LOG('todo',{i,val:e.target.value});savePersDeb()}
-
-  /* ===== STORAGE (LOCAL & API) ===== */
-  function lsKeyWeek(){return `wk:${weekKey(currentMonday)}`}
+  function lsWeekKey(){return `wk:${weekKey(currentMonday)}`}
   const LS_PERSIST='persist:v1';
 
   async function loadWeek(){
     if(STORAGE_MODE==='local'){
-      const raw=localStorage.getItem(lsKeyWeek()); LOG('load-week-local',{key:lsKeyWeek(),found:!!raw});
+      const raw=localStorage.getItem(lsWeekKey()); LOG('load-week-local',{key:lsWeekKey(),found:!!raw});
       weekData = raw? JSON.parse(raw) : blankWeek();
     }else{
       try{
         const res=await fetch(`${API_BASE}/load-week`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:weekKey(currentMonday)})});
         const data=await res.json().catch(()=>({}));
-        LOG('load-week',{status:res.status,ok:res.ok,key:weekKey(currentMonday)});
-        weekData = (res.ok && data && data.week) ? data.week : blankWeek();
+        LOG('load-week',{status:res.status,ok:res.ok});
+        weekData = (res.ok && data && data.week)? data.week : blankWeek();
       }catch(err){LOG('load-week-error',{err:String(err)});weekData=blankWeek()}
     }
   }
@@ -208,12 +264,12 @@
     if(savingWeek) return; savingWeek=true;
     const key=weekKey(currentMonday);
     if(STORAGE_MODE==='local'){
-      localStorage.setItem(lsKeyWeek(),JSON.stringify(weekData));
+      localStorage.setItem(lsWeekKey(),JSON.stringify(weekData));
       LOG('save-week-local',{key});
     }else{
       try{
         const res=await fetch(`${API_BASE}/save-week`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,week:weekData})});
-        LOG('save-week',{status:res.status,ok:res.ok,key});
+        LOG('save-week',{status:res.status,ok:res.ok});
       }catch(err){LOG('save-week-error',{err:String(err)})}
     }
     savingWeek=false;
@@ -221,13 +277,15 @@
   async function loadPersistent(){
     if(STORAGE_MODE==='local'){
       const raw=localStorage.getItem(LS_PERSIST); LOG('load-persistent-local',{found:!!raw});
-      if(raw){persistent=Object.assign(blankPersistent(),JSON.parse(raw))}
+      persistent = raw ? Object.assign(blankPersistent(), JSON.parse(raw)) : blankPersistent();
     }else{
       try{
         const res=await fetch(`${API_BASE}/load-persistent`,{method:'POST',headers:{'Content-Type':'application/json'}});
         const data=await res.json().catch(()=>({}));
         LOG('load-persistent',{status:res.status,ok:res.ok});
-        if(res.ok && data && data.persistent){persistent=Object.assign(blankPersistent(),data.persistent)}
+        if(res.ok && data && data.persistent){
+          persistent = Object.assign(blankPersistent(), data.persistent);
+        }
       }catch(err){LOG('load-persistent-error',{err:String(err)})}
     }
   }
@@ -245,29 +303,36 @@
     savingPersistent=false;
   }
 
-  /* ===== WEEK NAV + CAL ===== */
+  /* ===== NAV + CALENDAR ===== */
   function goToMonday(d){
     currentMonday=getMonday(d);
     renderHeader();
-    weekData=blankWeek();              // visually reset now
+    weekData=blankWeek();      // visual reset
     renderGrid();
-    loadWeek().then(()=>renderGrid()); // then show loaded (or blank) week
+    loadWeek().then(()=>renderGrid());
+    document.dispatchEvent(new CustomEvent('weekchange',{detail:{monday:currentMonday}}));
   }
-  document.getElementById('prevWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday,-7)));
-  document.getElementById('nextWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday,7)));
-  document.getElementById('todayBtn').addEventListener('click',()=>goToMonday(new Date()));
-  document.getElementById('resetWeek').addEventListener('click',()=>{weekData=blankWeek();renderGrid();saveWeek();LOG('reset-week',{key:weekKey(currentMonday)})});
-  document.getElementById('printBtn').addEventListener('click',()=>window.print());
 
-  const backdrop=document.getElementById('calBackdrop');
-  const datePicker=document.getElementById('datePicker');
-  document.getElementById('openCalendar').addEventListener('click',()=>{
+  // buttons
+  const $=id=>document.getElementById(id);
+  $('prevWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday,-7)));
+  $('nextWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday, 7)));
+  $('todayBtn').addEventListener('click',()=>goToMonday(new Date()));
+  $('resetWeek').addEventListener('click',()=>{weekData=blankWeek();renderGrid();saveWeek();LOG('reset-week',{key:weekKey(currentMonday)})});
+  $('printBtn').addEventListener('click',()=>window.print());
+
+  // calendar open/close
+  const backdrop=$('calBackdrop'), datePicker=$('datePicker');
+  $('openCalendar').addEventListener('click',()=>{
     backdrop.style.display='flex';
     const iso=new Date(currentMonday.getTime()-currentMonday.getTimezoneOffset()*60000).toISOString().slice(0,10);
     datePicker.value=iso; datePicker.focus();
   });
-  backdrop.addEventListener('click',(e)=>{if(e.target===backdrop) backdrop.style.display='none'});
-  datePicker.addEventListener('change',()=>{const v=datePicker.value;if(v){goToMonday(new Date(v+"T12:00:00"))}backdrop.style.display='none'});
+  backdrop.addEventListener('click',(e)=>{ if(e.target===backdrop) backdrop.style.display='none'; });
+  datePicker.addEventListener('change',()=>{
+    const v=datePicker.value; if(v){ goToMonday(new Date(v+"T12:00:00")); }
+    backdrop.style.display='none';
+  });
 
   /* ===== INIT ===== */
   window.addEventListener('DOMContentLoaded', async ()=>{
