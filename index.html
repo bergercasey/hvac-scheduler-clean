@@ -1,375 +1,514 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>HVAC Weekly Schedule</title>
 <style>
   :root{
-    /* Layout knobs */
-    --page-max: 1360px;     /* overall width */
-    --left-col: 190px;      /* crew lead column width */
-
-    /* Row/input sizes */
-    --cell-min-h: 74px;
-    --name-h: 30px;         /* Crew Lead & Apprentice heights */
-    --helper-h: 30px;
-
-    /* exact 2-line job geometry (iPad Safari friendly) */
-    --job-line: 20px;       /* px line-height */
-    --job-vpad: 6px;        /* top/bottom padding */
-    --job-hpad: 8px;        /* left/right padding */
-    --job-height: calc(2*var(--job-line) + 2*var(--job-vpad) + 2px); /* +2px cushion helps tapping line 2 */
-
-    /* Colors */
-    --grid-border:#cfcfcf;
-    --hdr-bg:#f5f5f5;
-    --shade: rgba(255,0,0,0.10); /* helper PTO shading */
-    --blue:#0a84ff;  /* helper */
-    --red:#c00;      /* crew */
+    --grid-w: 1200px;            /* keeps bottom sections aligned with grid width */
+    --col-left: 180px;           /* crew column */
+    --col-day: 190px;            /* each day column */
+    --gap: 8px;
+    --radius: 8px;
+    --stroke: #d0d0d0;
+    --shade: rgba(255,0,0,0.08); /* light red shading for LEAD PTO */
   }
 
-  html,body{background:#fff}
-  body{font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;margin:0}
-  .wrap{max-width:var(--page-max);margin:16px auto 28px;padding:0 12px}
-  h1{margin:6px 0 8px;text-align:center;font-size:22px;font-weight:700}
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#fff; color:#222; }
 
-  /* toolbar */
-  .toolbar{display:flex;justify-content:center;align-items:center;gap:8px;margin:8px 0 12px}
-  .btn{font-size:14px;padding:6px 10px;border:1px solid #bbb;background:#fff;border-radius:6px;cursor:pointer}
-  .btn:active{transform:translateY(1px)}
-  .calendar-btn{padding:4px 8px;font-size:18px}
+  /* Header + buttons */
+  header { padding:16px 10px 8px; }
+  h1 { text-align:center; margin:0 0 10px; font-size:20px; }
+  .toolbar {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .btn {
+    padding:6px 10px; border:1px solid #c9c9c9; border-radius:6px; background:#f7f7f7;
+    font-size:14px; line-height:1; cursor:pointer;
+  }
+  .btn:active { transform: translateY(1px); }
+  .cal-btn { display:inline-flex; align-items:center; gap:6px; }
 
-  /* week header */
-  .weekbar{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border);border-bottom:0;background:var(--hdr-bg)}
-  .weekbar>div{height:30px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--grid-border);font-size:14px;padding:0 6px}
-  .weekbar>div:last-child{border-right:0}
-  .crew-lead-head{font-weight:600}
-
-  /* grid */
-  .grid{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border)}
-  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);background:#fff;min-height:var(--cell-min-h);position:relative}
-  .grid>:nth-child(-n+6){border-top:0}
-  .grid>:nth-child(6n){border-right:0}
-  .cell{overflow:hidden}
-
-  /* left column */
-  .leadcell{padding:6px;display:flex;flex-direction:column;gap:6px}
-  .lead-input,.apprentice-input{
-    width:100%;height:var(--name-h);
-    border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;line-height:18px;background:#fff;box-sizing:border-box
+  /* Grid shell */
+  .wrap { display:flex; justify-content:center; }
+  .grid {
+    width: min(100%, var(--grid-w));
+    margin: 8px auto 16px;
+    display:grid;
+    grid-template-columns: var(--col-left) repeat(5, var(--col-day));
+    gap: var(--gap);
+    align-items: start;
   }
 
-  /* day cell content */
-  .cell-inner{
-    /* Reserve space for the corner bubbles so they never cover inputs */
-    padding:6px 34px 30px 6px; /* top | right | bottom | left */
-    box-sizing:border-box;
-    height:100%;
+  /* Header row */
+  .th {
+    position:sticky; top:0; z-index:2;
+    background:#fff; border:1px solid var(--stroke); border-radius:6px;
+    padding:8px; text-align:center; font-weight:600; font-size:13px;
   }
-  .job{
-    width:100%;
-    height:var(--job-height);
-    border:1px solid #bbb;border-radius:4px;
-    padding:var(--job-vpad) var(--job-hpad);
-    font-size:14px; line-height:var(--job-line);
-    resize:none; background:#fff; box-sizing:border-box; display:block;
-  }
-  .job:focus{outline:2px solid rgba(0,0,0,0.08)}
-  .helper{
-    width:100%; height:var(--helper-h);
-    border:1px solid #bbb;border-radius:4px;
-    padding:6px 8px; box-sizing:border-box;
-    font-size:14px; line-height:18px;
-    color:var(--blue); background:#fff;
-    margin-top:4px;
-  }
-  .helper::placeholder{opacity:.7;color:#7a7a7a}
+  .th.small { font-weight:700; }
 
-  /* PTO bubbles (clean capsules in corners) */
-  .pto-bubble{
-    position:absolute;
-    width:20px; height:20px;
-    border:1px solid #bbb;
-    border-radius:4px;
-    display:flex; align-items:center; justify-content:center;
+  /* Crew column cells */
+  .crewcell {
+    border:1px solid var(--stroke); border-radius:6px; padding:8px;
+    display:flex; flex-direction:column; gap:6px;
     background:#fff;
   }
-  .pto-bubble input{margin:0; width:16px; height:16px}
+  .crewcell input[type="text"] {
+    width:100%; padding:6px 8px; border:1px solid var(--stroke); border-radius:6px;
+    font-size:14px;
+  }
 
-  /* CREW = top-right (red) */
-  .pto-crew{ top:4px; right:4px; }
-  .pto-crew input{ accent-color: var(--red); }
+  /* Day cells */
+  .cell {
+    border:1px solid var(--stroke); border-radius:6px; background:#fff;
+    padding:8px; position:relative; overflow:clip; /* prevents bubble overrun */
+  }
 
-  /* HELPER = bottom-right (blue) */
-  .pto-helper{ bottom:4px; right:4px; }
-  .pto-helper input{ accent-color: var(--blue); }
+  /* Bubble containing job/helper + PTO checks (kept inside cell) */
+  .bubble {
+    position:relative; border:1px solid var(--stroke); border-radius: var(--radius);
+    padding:8px 28px 8px 8px; /* room on right for PTO checkboxes */
+    background:#fff; display:flex; flex-direction:column; gap:6px;
+  }
 
-  /* helper-PTO shading across the cell */
-  .shade{background:var(--shade)}
+  /* When LEAD PTO is checked, tint the whole bubble */
+  .bubble.lead-out { background: var(--shade); }
 
-  /* bottom: Floaters left / To‑dos right */
-  .bottom-wrap{display:flex;gap:12px;align-items:flex-start;margin-top:12px}
-  .floaters{flex:1;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
-  .todo{flex:3;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
-  .section-title{font-weight:600;margin-bottom:6px}
-  .todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .todo-grid input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;background:#fff}
-  .floater-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-  .floater-row input[type="text"]{flex:1;border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;background:#fff}
-  .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--red)}
-  .floater-assigned{background:var(--shade);border-radius:4px;padding:2px}
+  /* Inputs */
+  textarea.job {
+    width:100%; min-height:2.6em; max-height:4.8em; /* shows ~2 lines; can grow a bit */
+    resize:none; border:1px solid var(--stroke); border-radius:6px; padding:6px 8px;
+    font-size:15px; line-height:1.2; overflow:auto;
+  }
+  input.helper {
+    width:100%; border:1px solid var(--stroke); border-radius:6px; padding:6px 8px;
+    font-size:14px; color:#1666ff; /* Helper text blue */
+  }
+  input.helper::placeholder { color:#8bb0ff; }
 
-  /* log + modal */
-  .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden;background:#fff}
-  .log h3{margin:0;padding:8px 10px;background:var(--hdr-bg);font-size:14px}
-  .logpre{margin:0;padding:8px 10px;height:140px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#fff}
-  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.2);display:none;align-items:center;justify-content:center}
-  .modal{background:#fff;padding:12px;border-radius:10px;width:300px;box-shadow:0 8px 30px rgba(0,0,0,.2)}
-  .modal h4{margin:0 0 8px}
-  .modal input[type="date"]{width:100%;padding:8px;font-size:16px}
+  /* Tiny PTO checkboxes tucked INSIDE the bubble (upper-right corner stack) */
+  .ptos {
+    position:absolute; right:6px; top:6px; display:flex; flex-direction:column; gap:6px;
+    align-items:flex-end;
+  }
+  .ptos label {
+    display:flex; align-items:center; gap:4px; font-size:11px; color:#666;
+    background:#fff; padding:2px 4px; border:1px solid var(--stroke); border-radius:5px;
+  }
+  /* Make the native checks small */
+  .ptos input[type="checkbox"] {
+    width:14px; height:14px; accent-color:#999; /* default for LEAD */
+    margin:0;
+  }
+  /* Helper PTO should show a red check but NOT trigger shading */
+  .ptos input.helper-pto { accent-color:#d22; } /* red check color */
+
+  /* Focus outlines (iPad friendly) */
+  textarea:focus, input[type="text"]:focus { outline: 2px solid #a7c7ff; }
+
+  /* Debug log */
+  .log {
+    width:min(100%, var(--grid-w));
+    margin:0 auto 24px; border-top:1px solid #eee; padding:10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:12px; max-height:160px; overflow:auto; background:#fafafa;
+  }
+  .row { display:contents; } /* semantic wrapper for each crew row */
+
+  /* Bottom sections (aligned to grid width) */
+  .bottom {
+    width:min(100%, var(--grid-w));
+    margin: 4px auto 24px;
+    display:grid; grid-template-columns: 1fr 3fr; gap: var(--gap);
+  }
+  .floater, .todo {
+    border:1px solid var(--stroke); border-radius:6px; padding:8px; background:#fff;
+  }
+  .floater h3, .todo h3 { margin:0 0 6px; font-size:14px; text-align:left; }
+  .floater .item { display:flex; align-items:center; gap:8px; margin:4px 0; }
+  .floater .item input[type="text"]{
+    flex:1; padding:6px 8px; border:1px solid var(--stroke); border-radius:6px; font-size:14px;
+  }
+  .floater .item input[type="checkbox"]{
+    accent-color:#d22; /* checkbox turns name red when checked via class */
+  }
+  .floater .item.assigned input[type="text"]{ background: var(--shade); }
+
+  .todo .item { margin:4px 0; }
+  .todo .item input[type="text"]{
+    width:100%; padding:6px 8px; border:1px solid var(--stroke); border-radius:6px; font-size:14px;
+  }
+
+  /* Small calendar popover */
+  dialog#calendar { padding:0; border:1px solid var(--stroke); border-radius:8px; }
+  dialog#calendar .calwrap { padding:8px; min-width: 260px; }
+  dialog#calendar header { display:flex; justify-content:space-between; align-items:center; padding:8px; }
+  dialog#calendar table { width:100%; border-collapse:collapse; }
+  dialog#calendar th, dialog#calendar td { text-align:center; padding:6px; }
+  dialog#calendar td button { border:none; background:#f0f0f0; border-radius:6px; padding:6px 0; width:100%; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>HVAC Weekly Schedule</h1>
 
+<header>
+  <h1>HVAC Weekly Schedule</h1>
   <div class="toolbar">
-    <button class="btn calendar-btn" id="openCalendar" title="Pick a date">📅</button>
+    <button class="btn cal-btn" id="openCal" aria-label="Open calendar">📅</button>
     <button class="btn" id="prevWeek">Previous Week</button>
     <button class="btn" id="todayBtn">Today</button>
     <button class="btn" id="nextWeek">Next Week</button>
     <button class="btn" id="resetWeek">Reset Week</button>
-    <button class="btn" id="printBtn">Print</button>
+    <button class="btn" onclick="window.print()">Print</button>
   </div>
+</header>
 
-  <div class="weekbar">
-    <div class="crew-lead-head">Crew Lead</div>
-    <div id="d0"></div><div id="d1"></div><div id="d2"></div><div id="d3"></div><div id="d4"></div>
-  </div>
-
-  <div class="grid" id="grid"></div>
-
-  <div class="bottom-wrap">
-    <div class="floaters">
-      <div class="section-title">Floaters (10)</div>
-      <div id="floatersList"></div>
-    </div>
-    <div class="todo">
-      <div class="section-title">Need to be done jobs (12)</div>
-      <div class="todo-grid" id="todoGrid"></div>
-    </div>
-  </div>
-
-  <div class="log">
-    <h3>Log</h3>
-    <pre class="logpre" id="log"></pre>
-  </div>
+<div class="wrap">
+  <div id="grid" class="grid" aria-live="polite"></div>
 </div>
 
-<!-- Calendar modal -->
-<div class="modal-backdrop" id="calBackdrop" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true">
-    <h4>Jump to week</h4>
-    <input type="date" id="datePicker"/>
-  </div>
+<!-- Bottom sections (stay aligned to grid width) -->
+<div class="bottom">
+  <section class="floater">
+    <h3>Floaters</h3>
+    <div id="floaterList"></div>
+  </section>
+  <section class="todo">
+    <h3>Need to be done jobs</h3>
+    <div id="todoList"></div>
+  </section>
 </div>
+
+<div id="log" class="log" aria-label="Debug log"></div>
+
+<!-- Simple Month Picker -->
+<dialog id="calendar"><div class="calwrap">
+  <header>
+    <button class="btn" id="calPrev">◀</button>
+    <div id="calTitle" style="font-weight:600"></div>
+    <button class="btn" id="calNext">▶</button>
+  </header>
+  <table>
+    <thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead>
+    <tbody id="calBody"></tbody>
+  </table>
+  <div style="padding:8px; text-align:right;">
+    <button class="btn" id="calClose">Close</button>
+  </div>
+</div></dialog>
 
 <script>
-(() => {
-  /* ===== CONFIG ===== */
-  const CREWS=12, DAYS=5;
-  const STORAGE_MODE='local';             // 'local' now, switch to 'api' later
-  const API_BASE='/.netlify/functions';   // change if needed
-  const LOG=(tag,p)=>{const L=document.getElementById('log');if(!L)return;const t=new Date().toLocaleTimeString();L.textContent+=`[${t}] ${tag} ${p?JSON.stringify(p):""}\n`;L.scrollTop=L.scrollHeight};
+/* ------------------ UTIL ------------------ */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const log = (...args) => {
+  const line = '[' + new Date().toLocaleTimeString() + '] ' + args.map(a => {
+    try { return typeof a === 'string' ? a : JSON.stringify(a); } catch(e){ return String(a); }
+  }).join(' ');
+  const el = document.getElementById('log');
+  el.textContent += line + '\n';
+  el.scrollTop = el.scrollHeight;
+};
 
-  /* ===== STATE ===== */
-  let currentMonday=getMonday(new Date());
-  let weekData=blankWeek();
-  let persistent=blankPersistent();
-  let savingWeek=false,savingPersistent=false;
+const isoWeekKey = (d=new Date())=>{
+  // key like 2025-W34 (Mon-based)
+  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+  const weekNo = Math.ceil((((dt - yearStart) / 86400000) + 1) / 7);
+  return dt.getUTCFullYear() + '-W' + String(weekNo).padStart(2,'0');
+};
 
-  /* ===== UTIL ===== */
-  function getMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const day=x.getDay();x.setDate(x.getDate()+(day===0?-6:1-day));x.setHours(0,0,0,0);return x}
-  function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
-  function fmtDay(date){return `${date.toLocaleDateString(undefined,{weekday:'short'})} ${(date.getMonth()+1)}/${date.getDate()}`}
-  function weekKey(d){
-    const date=new Date(d);date.setHours(0,0,0,0);
-    const jan4=new Date(date.getFullYear(),0,4);
-    const w1=getMonday(jan4), mon=getMonday(date);
-    const num=1+Math.round((mon-w1)/(7*24*3600*1000));
-    return `${date.getFullYear()}-W${String(num).padStart(2,'0')}`;
+const startOfWeek = (d=new Date())=>{
+  const x = new Date(d);
+  const day = x.getDay(); // 0 Sun .. 6 Sat
+  const diff = (day === 0 ? -6 : 1) - day; // Monday start
+  x.setDate(x.getDate() + diff);
+  x.setHours(0,0,0,0);
+  return x;
+};
+
+const fmt = (d)=> d.toLocaleDateString(undefined,{weekday:'short', month:'numeric', day:'numeric'});
+
+/* ------------------ STATE ------------------ */
+let currentMonday = startOfWeek(new Date());
+const CREW_COUNT = 12;
+const DAYS = 5; // Mon-Fri
+
+// in-memory model (kept simple)
+let state = {
+  crews: Array.from({length: CREW_COUNT}, ()=>({lead:'', apprentice:''})),
+  cells: {} // key: row-day -> {job:'', helper:'', leadPTO:false, helperPTO:false}
+};
+
+// persistent lists
+let persistent = {
+  floaters: Array.from({length:10}, ()=>({name:'', assigned:false})),
+  todos: Array.from({length:12}, ()=>({text:''}))
+};
+
+/* ------------------ SAVE / LOAD (de-bounced) ------------------ */
+let saveTimer = null;
+const queueSave = (what) => {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=> doSave(what), 600); // batch edits within 600ms
+};
+
+async function doSave(what){
+  const payload = {
+    weekKey: isoWeekKey(currentMonday),
+    state, persistent, what
+  };
+  log('save', {key: payload.weekKey, what});
+  try{
+    // Adjust to your Netlify function names if different
+    await fetch('/.netlify/functions/save-week', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+  }catch(e){
+    log('save-error', String(e));
   }
-  function blankWeek(){const jobs=[],helpers=[],cpto=[],hpto=[];for(let r=0;r<CREWS;r++){jobs[r]=Array(DAYS).fill("");helpers[r]=Array(DAYS).fill("");cpto[r]=Array(DAYS).fill(false);hpto[r]=Array(DAYS).fill(false)}return{jobs,helpers,crewPTO:cpto,helperPTO:hpto}}
-  function blankPersistent(){return{crewLeads:Array(CREWS).fill(""),apprentices:Array(CREWS).fill(""),floaters:Array(10).fill(""),todos:Array(12).fill("")}}
-  const debounce=(fn,ms=200)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
+}
 
-  /* ===== RENDER ===== */
-  function renderHeader(){for(let c=0;c<DAYS;c++){document.getElementById('d'+c).textContent=fmtDay(addDays(currentMonday,c))}}
+async function loadAll(){
+  const key = isoWeekKey(currentMonday);
+  try{
+    const r1 = await fetch('/.netlify/functions/load-week?key='+encodeURIComponent(key));
+    if (r1.ok){
+      const json = await r1.json();
+      if (json && json.state){ state = json.state; }
+      log('load-week', {status:r1.status, ok:r1.ok, key});
+    } else {
+      log('load-week', {status:r1.status, ok:false, key});
+    }
+  }catch(e){ log('load-week-error', String(e)); }
 
-  function makeCell(r,c){
-    const cell=document.createElement('div'); cell.className='cell'; cell.dataset.r=r; cell.dataset.c=c;
+  try{
+    const r2 = await fetch('/.netlify/functions/load-persistent');
+    if (r2.ok){
+      const json = await r2.json();
+      if (json && json.persistent){ persistent = json.persistent; }
+      log('load-persistent', {status:r2.status, ok:r2.ok});
+    } else {
+      log('load-persistent', {status:r2.status, ok:false});
+    }
+  }catch(e){ log('load-persistent-error', String(e)); }
+}
 
-    const inner=document.createElement('div'); inner.className='cell-inner';
+/* ------------------ RENDER ------------------ */
+function createGrid(){
+  const grid = $('#grid');
+  grid.innerHTML = '';
 
-    const job=document.createElement('textarea');
-    job.className='job'; job.placeholder=(c===0?'Job':''); job.value=weekData.jobs[r][c]||"";
-    job.addEventListener('input', (e)=>{weekData.jobs[r][c]=e.target.value; LOG('job',{r,c,val:e.target.value}); saveWeekDeb();});
+  // Header row
+  const headLeft = document.createElement('div');
+  headLeft.className = 'th small';
+  headLeft.textContent = 'Crew Lead';
+  grid.appendChild(headLeft);
 
-    const helper=document.createElement('input');
-    helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||"";
-    helper.addEventListener('input',(e)=>{weekData.helpers[r][c]=e.target.value; LOG('helper',{r,c,val:e.target.value}); saveWeekDeb();});
-
-    // PTO bubbles (no overlap because of reserved padding)
-    const crewB=document.createElement('label'); crewB.className='pto-bubble pto-crew';
-    const crewCB=document.createElement('input'); crewCB.type='checkbox'; crewCB.checked=!!weekData.crewPTO[r][c];
-    crewCB.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
-    crewB.appendChild(crewCB);
-
-    const helpB=document.createElement('label'); helpB.className='pto-bubble pto-helper';
-    const helpCB=document.createElement('input'); helpCB.type='checkbox'; helpCB.checked=!!weekData.helperPTO[r][c];
-    helpCB.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
-    helpB.appendChild(helpCB);
-
-    inner.appendChild(job);
-    inner.appendChild(helper);
-    cell.appendChild(inner);
-    cell.appendChild(crewB);   // top-right (red)
-    cell.appendChild(helpB);   // bottom-right (blue)
-    return cell;
+  for(let d=0; d<DAYS; d++){
+    const th = document.createElement('div');
+    th.className='th';
+    const dayDate = new Date(currentMonday); dayDate.setDate(dayDate.getDate()+d);
+    th.textContent = fmt(dayDate);
+    grid.appendChild(th);
   }
 
-  function renderGrid(){
-    const g=document.getElementById('grid'); g.innerHTML="";
-    for(let r=0;r<CREWS;r++){
-      const lead=document.createElement('div'); lead.className='leadcell';
-      const leadIn=document.createElement('input'); leadIn.className='lead-input'; leadIn.placeholder='Crew Lead'; leadIn.value=persistent.crewLeads[r]||"";
-      leadIn.dataset.r=r; leadIn.addEventListener('input',(e)=>{persistent.crewLeads[r]=e.target.value; LOG('crew-lead',{r,val:e.target.value}); savePersistentDeb();});
-      const appr=document.createElement('input'); appr.className='apprentice-input'; appr.placeholder='Apprentice'; appr.value=persistent.apprentices[r]||"";
-      appr.dataset.r=r; appr.addEventListener('input',(e)=>{persistent.apprentices[r]=e.target.value; LOG('apprentice',{r,val:e.target.value}); savePersistentDeb();});
-      lead.appendChild(leadIn); lead.appendChild(appr);
-      g.appendChild(lead);
+  // Rows
+  for(let r=0; r<CREW_COUNT; r++){
+    // Crew column
+    const crew = document.createElement('div');
+    crew.className = 'crewcell';
+    const lead = document.createElement('input');
+    lead.type = 'text'; lead.placeholder = 'Crew Lead'; lead.value = state.crews[r]?.lead || '';
+    lead.dataset.role = 'lead'; lead.dataset.row = r;
+    const appr = document.createElement('input');
+    appr.type = 'text'; appr.placeholder = 'Apprentice'; appr.value = state.crews[r]?.apprentice || '';
+    appr.dataset.role = 'apprentice'; appr.dataset.row = r;
+    crew.append(lead, appr);
+    grid.appendChild(crew);
 
-      for(let c=0;c<DAYS;c++){ g.appendChild(makeCell(r,c)); }
+    // Day cells
+    for(let d=0; d<DAYS; d++){
+      const key = `${r}-${d}`;
+      const data = state.cells[key] || (state.cells[key] = {job:'', helper:'', leadPTO:false, helperPTO:false});
+
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble' + (data.leadPTO ? ' lead-out' : '');
+
+      const ptos = document.createElement('div');
+      ptos.className = 'ptos';
+
+      // Lead PTO (shades bubble)
+      const labLead = document.createElement('label');
+      labLead.title = 'Lead PTO';
+      const c1 = document.createElement('input');
+      c1.type='checkbox'; c1.checked = !!data.leadPTO; c1.dataset.pto='lead'; c1.dataset.key = key;
+      labLead.append(c1, document.createTextNode('L'));
+      ptos.appendChild(labLead);
+
+      // Helper PTO (red check only, no shading)
+      const labHelp = document.createElement('label');
+      labHelp.title = 'Helper PTO';
+      const c2 = document.createElement('input');
+      c2.type='checkbox'; c2.className='helper-pto'; c2.checked = !!data.helperPTO; c2.dataset.pto='helper'; c2.dataset.key = key;
+      labHelp.append(c2, document.createTextNode('H'));
+      ptos.appendChild(labHelp);
+
+      const job = document.createElement('textarea');
+      job.className='job';
+      job.placeholder = (d===0) ? 'Job' : '';
+      job.value = data.job || '';
+      job.dataset.key = key; job.dataset.field='job';
+
+      const helper = document.createElement('input');
+      helper.type='text'; helper.className='helper';
+      helper.placeholder = (d===0) ? 'Helper' : '';
+      helper.value = data.helper || '';
+      helper.dataset.key = key; helper.dataset.field='helper';
+
+      bubble.append(ptos, job, helper);
+      cell.appendChild(bubble);
+      grid.appendChild(cell);
     }
   }
+}
 
-  function renderBottom(){
-    const fl=document.getElementById('floatersList'); fl.innerHTML="";
-    for(let i=0;i<persistent.floaters.length;i++){
-      const row=document.createElement('div'); row.className='floater-row';
-      const cb=document.createElement('input'); cb.type='checkbox'; cb.addEventListener('change',()=>row.classList.toggle('floater-assigned',cb.checked));
-      const t=document.createElement('input'); t.type='text'; t.placeholder=`Floater ${i+1}`; t.value=persistent.floaters[i]||"";
-      t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.floaters[i]=e.target.value; LOG('floater',{i,val:e.target.value}); savePersistentDeb();});
-      row.appendChild(cb); row.appendChild(t); fl.appendChild(row);
+/* ------------------ EVENT DELEGATION (no duplicate listeners) ------------------ */
+function attachHandlers(){
+  // Crew name/apprentice
+  $('#grid').addEventListener('input', (e)=>{
+    const t = e.target;
+    if (t.matches('.crewcell input[type="text"]')){
+      const row = +t.dataset.row;
+      if (t.dataset.role==='lead') state.crews[row].lead = t.value;
+      else state.crews[row].apprentice = t.value;
+      log('crew-change', {row, role:t.dataset.role, val:t.value});
+      queueSave('crew');
     }
-    const tg=document.getElementById('todoGrid'); tg.innerHTML="";
-    for(let i=0;i<persistent.todos.length;i++){
-      const t=document.createElement('input'); t.type='text'; t.placeholder=`Job ${i+1}`; t.value=persistent.todos[i]||"";
-      t.dataset.i=i; t.addEventListener('input',(e)=>{persistent.todos[i]=e.target.value; LOG('todo',{i,val:e.target.value}); savePersistentDeb();});
-      tg.appendChild(t);
-    }
-  }
+  }, {passive:true});
 
-  /* ===== SAVE/LOAD ===== */
-  const saveWeekDeb=debounce(saveWeek,200);
-  const savePersistentDeb=debounce(savePersistent,200);
-
-  function lsWeekKey(){return `wk:${weekKey(currentMonday)}`}
-  const LS_PERSIST='persist:v1';
-
-  async function loadWeek(){
-    if(STORAGE_MODE==='local'){
-      const raw=localStorage.getItem(lsWeekKey()); LOG('load-week-local',{key:lsWeekKey(),found:!!raw});
-      weekData = raw? JSON.parse(raw) : blankWeek();
-    }else{
-      try{
-        const res=await fetch(`${API_BASE}/load-week`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:weekKey(currentMonday)})});
-        const data=await res.json().catch(()=>({}));
-        LOG('load-week',{status:res.status,ok:res.ok});
-        weekData = (res.ok && data && data.week)? data.week : blankWeek();
-      }catch(err){LOG('load-week-error',{err:String(err)});weekData=blankWeek()}
+  // Job / Helper edits (debounced)
+  $('#grid').addEventListener('input', (e)=>{
+    const t = e.target;
+    if (t.dataset && t.dataset.key){
+      const cell = state.cells[t.dataset.key];
+      cell[t.dataset.field] = t.value;
+      log('edit', {key:t.dataset.key, field:t.dataset.field, val:t.value});
+      queueSave('cell');
     }
-  }
-  async function saveWeek(){
-    if(savingWeek) return; savingWeek=true;
-    const key=weekKey(currentMonday);
-    if(STORAGE_MODE==='local'){
-      localStorage.setItem(lsWeekKey(),JSON.stringify(weekData));
-      LOG('save-week-local',{key});
-    }else{
-      try{
-        const res=await fetch(`${API_BASE}/save-week`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,week:weekData})});
-        LOG('save-week',{status:res.status,ok:res.ok});
-      }catch(err){LOG('save-week-error',{err:String(err)})}
-    }
-    savingWeek=false;
-  }
-  async function loadPersistent(){
-    if(STORAGE_MODE==='local'){
-      const raw=localStorage.getItem(LS_PERSIST); LOG('load-persistent-local',{found:!!raw});
-      persistent = raw ? Object.assign(blankPersistent(), JSON.parse(raw)) : blankPersistent();
-    }else{
-      try{
-        const res=await fetch(`${API_BASE}/load-persistent`,{method:'POST',headers:{'Content-Type':'application/json'}});
-        const data=await res.json().catch(()=>({}));
-        LOG('load-persistent',{status:res.status,ok:res.ok});
-        if(res.ok && data && data.persistent){
-          persistent = Object.assign(blankPersistent(), data.persistent);
+  }, {passive:true});
+
+  // PTO toggles
+  $('#grid').addEventListener('change', (e)=>{
+    const t = e.target;
+    if (t.type==='checkbox' && t.dataset && t.dataset.key){
+      const cell = state.cells[t.dataset.key];
+      if (t.dataset.pto==='lead'){
+        cell.leadPTO = t.checked;
+        // apply shading on the bubble only for LEAD
+        const bubble = t.closest('.bubble');
+        if (bubble){
+          bubble.classList.toggle('lead-out', t.checked);
         }
-      }catch(err){LOG('load-persistent-error',{err:String(err)})}
+      }else{
+        cell.helperPTO = t.checked; // no shading change
+      }
+      log('pto', {key:t.dataset.key, who:t.dataset.pto, checked:t.checked});
+      queueSave('pto');
     }
-  }
-  async function savePersistent(){
-    if(savingPersistent) return; savingPersistent=true;
-    if(STORAGE_MODE==='local'){
-      localStorage.setItem(LS_PERSIST,JSON.stringify(persistent));
-      LOG('save-persistent-local',{ok:true});
-    }else{
-      try{
-        const res=await fetch(`${API_BASE}/save-persistent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({persistent})});
-        LOG('save-persistent',{status:res.status,ok:res.ok});
-      }catch(err){LOG('save-persistent-error',{err:String(err)})}
+  });
+
+  // Navigation
+  $('#prevWeek').onclick = ()=>{ currentMonday.setDate(currentMonday.getDate()-7); refreshWeek(); };
+  $('#nextWeek').onclick = ()=>{ currentMonday.setDate(currentMonday.getDate()+7); refreshWeek(); };
+  $('#todayBtn').onclick = ()=>{ currentMonday = startOfWeek(new Date()); refreshWeek(); };
+  $('#resetWeek').onclick = ()=>{ state.cells = {}; createGrid(); };
+
+  // Calendar dialog
+  const cal = $('#calendar');
+  $('#openCal').onclick = ()=>{ buildCalendar(currentMonday); cal.showModal(); };
+  $('#calClose').onclick = ()=> cal.close();
+  $('#calPrev').onclick = ()=>{ calMonthOffset(-1); };
+  $('#calNext').onclick = ()=>{ calMonthOffset(1); };
+}
+
+async function refreshWeek(){
+  await loadAll();
+  createGrid();
+}
+
+/* ------------------ CALENDAR ------------------ */
+let calCursor = new Date();
+function buildCalendar(anchor){
+  calCursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  renderCalendar();
+}
+function calMonthOffset(n){
+  calCursor.setMonth(calCursor.getMonth()+n);
+  renderCalendar();
+}
+function renderCalendar(){
+  $('#calTitle').textContent = calCursor.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+  const first = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+  const start = new Date(first); start.setDate(1 - (first.getDay())); // start Sunday grid
+  const body = $('#calBody'); body.innerHTML='';
+  let d = new Date(start);
+  for(let r=0;r<6;r++){
+    const tr = document.createElement('tr');
+    for(let c=0;c<7;c++){
+      const td = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.textContent = d.getDate();
+      if (d.getMonth()!==calCursor.getMonth()) btn.style.opacity = .35;
+      btn.onclick = ()=>{
+        currentMonday = startOfWeek(d);
+        $('#calendar').close();
+        refreshWeek();
+      };
+      td.appendChild(btn); tr.appendChild(td); d.setDate(d.getDate()+1);
     }
-    savingPersistent=false;
+    body.appendChild(tr);
   }
+}
 
-  /* ===== NAV + CALENDAR ===== */
-  function goToMonday(d){
-    currentMonday=getMonday(d);
-    renderHeader();
-    weekData=blankWeek();
-    renderGrid();
-    loadWeek().then(()=>renderGrid());
-    document.dispatchEvent(new CustomEvent('weekchange',{detail:{monday:currentMonday}}));
-  }
-
-  const $=id=>document.getElementById(id);
-  $('prevWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday,-7)));
-  $('nextWeek').addEventListener('click',()=>goToMonday(addDays(currentMonday, 7)));
-  $('todayBtn').addEventListener('click',()=>goToMonday(new Date()));
-  $('resetWeek').addEventListener('click',()=>{weekData=blankWeek();renderGrid();saveWeek();LOG('reset-week',{key:weekKey(currentMonday)})});
-  $('printBtn').addEventListener('click',()=>window.print());
-
-  const backdrop=$('calBackdrop'), datePicker=$('datePicker');
-  $('openCalendar').addEventListener('click',()=>{
-    backdrop.style.display='flex';
-    const iso=new Date(currentMonday.getTime()-currentMonday.getTimezoneOffset()*60000).toISOString().slice(0,10);
-    datePicker.value=iso; datePicker.focus();
-  });
-  backdrop.addEventListener('click',(e)=>{ if(e.target===backdrop) backdrop.style.display='none'; });
-  datePicker.addEventListener('change',()=>{
-    const v=datePicker.value; if(v){ goToMonday(new Date(v+"T12:00:00")); }
-    backdrop.style.display='none';
+/* ------------------ BOTTOM SECTIONS ------------------ */
+function renderBottom(){
+  // Floaters
+  const fl = $('#floaterList'); fl.innerHTML='';
+  persistent.floaters.forEach((f, i)=>{
+    const row = document.createElement('div'); row.className='item' + (f.assigned?' assigned':'');
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!f.assigned;
+    const name = document.createElement('input'); name.type='text'; name.placeholder='Name'; name.value=f.name||'';
+    cb.onchange = ()=>{ f.assigned = cb.checked; row.classList.toggle('assigned', cb.checked); queueSave('floaters'); };
+    name.oninput = ()=>{ f.name = name.value; log('floater-name', {i, val:name.value}); queueSave('floaters'); };
+    row.append(cb, name); fl.appendChild(row);
   });
 
-  /* ===== INIT ===== */
-  window.addEventListener('DOMContentLoaded', async ()=>{
-    renderHeader(); renderGrid(); renderBottom();
-    await loadPersistent(); await loadWeek();
-    renderGrid(); renderBottom();
-    LOG('ready',{mode:STORAGE_MODE,week:weekKey(currentMonday)});
+  // To-do jobs
+  const tl = $('#todoList'); tl.innerHTML='';
+  persistent.todos.forEach((t, i)=>{
+    const row = document.createElement('div'); row.className='item';
+    const inp = document.createElement('input'); inp.type='text'; inp.placeholder='Job';
+    inp.value = t.text || '';
+    inp.oninput = ()=>{ t.text = inp.value; log('todo', {i, val:inp.value}); queueSave('todos'); };
+    row.appendChild(inp); tl.appendChild(row);
   });
+}
+
+/* ------------------ INIT ------------------ */
+(async function init(){
+  await loadAll();
+  createGrid();
+  renderBottom();
+  attachHandlers();
 })();
 </script>
 </body>
