@@ -8,23 +8,24 @@
   :root{
     --page-max: 1360px;
     --left-col: 190px;
+
+    /* Row + input sizes */
     --cell-min-h: 74px;
-
-    /* job textarea exact two-line geometry */
-    --job-line: 20px;                 /* line-height in px */
-    --job-vpad: 8px;                  /* top/bottom padding inside textarea */
-    --job-hpad: 8px;                  /* left/right padding inside textarea */
-    --job-height: calc(2*var(--job-line) + 2*var(--job-vpad));  /* 2 lines visible */
-
-    --helper-h: 30px;
     --name-h: 30px;
+    --helper-h: 30px;
 
+    /* exact 2-line job geometry (works on iPad Safari) */
+    --job-line: 20px;              /* px line-height */
+    --job-vpad: 6px;               /* top/bottom padding */
+    --job-hpad: 8px;               /* left/right padding */
+    --job-height: calc(2*var(--job-line) + 2*var(--job-vpad)); /* 2 visible lines */
+
+    /* Colors */
     --grid-border:#cfcfcf;
     --hdr-bg:#f5f5f5;
     --shade: rgba(255,0,0,0.10);
-
-    --blue:#0a84ff;   /* Helper PTO + helper text */
-    --red:#c00;       /* Crew PTO */
+    --blue:#0a84ff;   /* helper PTO + helper text */
+    --red:#c00;       /* crew PTO */
   }
 
   html,body{background:#fff}
@@ -32,57 +33,62 @@
   .wrap{max-width:var(--page-max);margin:16px auto 28px;padding:0 12px}
   h1{margin:6px 0 8px;text-align:center;font-size:22px;font-weight:700}
 
+  /* toolbar */
   .toolbar{display:flex;justify-content:center;align-items:center;gap:8px;margin:8px 0 12px}
   .btn{font-size:14px;padding:6px 10px;border:1px solid #bbb;background:#fff;border-radius:6px;cursor:pointer}
   .btn:active{transform:translateY(1px)}
   .calendar-btn{padding:4px 8px;font-size:18px}
 
+  /* week header */
   .weekbar{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border);border-bottom:0;background:var(--hdr-bg)}
   .weekbar>div{height:30px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--grid-border);font-size:14px;padding:0 6px}
   .weekbar>div:last-child{border-right:0}
   .crew-lead-head{font-weight:600}
 
+  /* grid */
   .grid{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border)}
-  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);position:relative;background:#fff}
-  .leadcell,.cell{padding:6px;min-height:var(--cell-min-h)}
+  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);background:#fff;min-height:var(--cell-min-h)}
   .grid>:nth-child(-n+6){border-top:0}
   .grid>:nth-child(6n){border-right:0}
-  .cell{overflow:hidden}  /* absolutely clip PTOs */
 
   /* left column */
-  .leadcell{display:flex;flex-direction:column;gap:6px}
+  .leadcell{padding:6px;display:flex;flex-direction:column;gap:6px}
   .lead-input,.apprentice-input{
     width:100%;height:var(--name-h);
-    border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;line-height:18px;background:#fff
+    border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;line-height:18px;background:#fff;box-sizing:border-box
   }
 
-  /* day cells */
-  .job{
-    width:100%;
-    height:var(--job-height);           /* true two-line box */
-    border:1px solid #bbb;border-radius:4px;
-    padding:var(--job-vpad) calc(var(--job-hpad) + 32px) calc(var(--job-vpad) + 18px) var(--job-hpad);
-    /*                 ^ right pad keeps BLUE PTO clear
-                       ^ bottom pad keeps RED PTO clear  */
-    font-size:14px;line-height:var(--job-line);resize:none;background:#fff;
-    box-sizing:border-box; display:block;
+  /* ===== Day cell: 2-column layout ===== */
+  .cell{padding:0;overflow:hidden}
+  .cell-inner{
+    display:grid; grid-template-columns: 1fr 24px; /* ← 24px PTO rail */
+    column-gap:6px; height:100%; padding:6px; box-sizing:border-box; position:relative
   }
-  .job:focus{outline:2px solid rgba(0,0,0,0.09)}
-  .helper{
-    width:100%;height:var(--helper-h);
+  .cell-main{display:flex;flex-direction:column;gap:4px}
+  .cell-pto{display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:2px 0}
+
+  /* inputs */
+  .job{
+    width:100%; height:var(--job-height);
     border:1px solid #bbb;border-radius:4px;
-    padding:4px calc(8px + 32px) 4px 8px; /* keep BLUE PTO clear */
-    font-size:14px;margin-top:4px;background:#fff;color:var(--blue);
-    box-sizing:border-box;
+    padding:var(--job-vpad) var(--job-hpad); box-sizing:border-box;
+    font-size:14px; line-height:var(--job-line); resize:none; background:#fff
+  }
+  .job:focus{outline:2px solid rgba(0,0,0,0.08)}
+  .helper{
+    width:100%; height:var(--helper-h);
+    border:1px solid #bbb;border-radius:4px;
+    padding:4px 8px; box-sizing:border-box;
+    font-size:14px; background:#fff; color:var(--blue)
   }
   .helper::placeholder{opacity:.7;color:#7a7a7a}
 
-  /* PTOs: one native checkbox each, inside the corners, never overlapping fields */
-  .pto{position:absolute; width:18px; height:18px; z-index:3; }
-  .pto.helper{top:6px; right:6px;}
-  .pto.crew{bottom:6px; right:6px;}
-  .pto.helper input{width:100%; height:100%; accent-color: var(--blue);}
-  .pto.crew   input{width:100%; height:100%; accent-color: var(--red);}
+  /* PTO checkboxes (native, colored) */
+  .cell-pto input{width:16px;height:16px}
+  .cell-pto .helper-pto{accent-color:var(--blue)} /* top */
+  .cell-pto .crew-pto{accent-color:var(--red)}   /* bottom */
+
+  /* Helper-PTO shading */
   .shade{background:var(--shade)}
 
   /* bottom: Floaters left / To‑dos right */
@@ -97,10 +103,10 @@
   .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--red)}
   .floater-assigned{background:var(--shade);border-radius:4px;padding:2px}
 
+  /* log + modal (unchanged) */
   .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden;background:#fff}
   .log h3{margin:0;padding:8px 10px;background:var(--hdr-bg);font-size:14px}
   .logpre{margin:0;padding:8px 10px;height:140px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#fff}
-
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.2);display:none;align-items:center;justify-content:center}
   .modal{background:#fff;padding:12px;border-radius:10px;width:300px;box-shadow:0 8px 30px rgba(0,0,0,.2)}
   .modal h4{margin:0 0 8px}
@@ -183,6 +189,10 @@
   function makeCell(r,c){
     const cell=document.createElement('div'); cell.className='cell'; cell.dataset.r=r; cell.dataset.c=c;
 
+    const inner=document.createElement('div'); inner.className='cell-inner';
+    const main=document.createElement('div'); main.className='cell-main';
+    const rail=document.createElement('div'); rail.className='cell-pto';
+
     const job=document.createElement('textarea');
     job.className='job'; job.placeholder=(c===0?'Job':''); job.value=weekData.jobs[r][c]||"";
     job.addEventListener('input', (e)=>{weekData.jobs[r][c]=e.target.value; LOG('job',{r,c,val:e.target.value}); saveWeekDeb();});
@@ -191,23 +201,20 @@
     helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||"";
     helper.addEventListener('input',(e)=>{weekData.helpers[r][c]=e.target.value; LOG('helper',{r,c,val:e.target.value}); saveWeekDeb();});
 
-    /* PTOs (clipped & correct colors) */
-    const hWrap=document.createElement('div'); hWrap.className='pto helper';
-    const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.checked=!!weekData.helperPTO[r][c];
+    /* PTOs in the dedicated rail (no overlap) */
+    const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.className='helper-pto'; hcb.checked=!!weekData.helperPTO[r][c];
     hcb.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
-    hWrap.appendChild(hcb);
-
-    const cWrap=document.createElement('div'); cWrap.className='pto crew';
-    const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.checked=!!weekData.crewPTO[r][c];
+    const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.className='crew-pto'; ccb.checked=!!weekData.crewPTO[r][c];
     ccb.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
-    cWrap.appendChild(ccb);
 
-    if(hcb.checked) cell.classList.add('shade');
-
-    cell.appendChild(job);
-    cell.appendChild(helper);
-    cell.appendChild(hWrap);
-    cell.appendChild(cWrap);
+    /* Build */
+    main.appendChild(job);
+    main.appendChild(helper);
+    rail.appendChild(hcb);       /* top (blue) */
+    rail.appendChild(ccb);       /* bottom (red) */
+    inner.appendChild(main);
+    inner.appendChild(rail);
+    cell.appendChild(inner);
     return cell;
   }
 
