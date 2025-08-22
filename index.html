@@ -28,6 +28,7 @@
   .job-input, .helper-input { width: 100%; border: none; padding: 2px; font-size: 14px; box-sizing: border-box; }
   .job-input { resize: none; line-height:1.25; }
   .helper-input { color: #0b62ff; }
+
   .pto-box, .helper-pto-box { position:absolute; width:14px; height:14px; cursor:pointer; appearance:auto; -webkit-appearance:auto; }
   .pto-box         { top:2px;  right:2px;  accent-color: red; }      /* LEAD PTO (shades cell) */
   .helper-pto-box  { bottom:2px; right:2px; accent-color: #0b62ff; } /* HELPER PTO is BLUE, no shading */
@@ -52,6 +53,10 @@
   #logWrap { margin-top:18px; }
   #logWrap h3 { margin: 6px 0; font-size: 14px; }
   #changeLog { height:160px; overflow:auto; border:1px solid #ddd; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:8px; background:#fafafa; white-space:pre-wrap; }
+
+  /* Copy mode visuals */
+  .copy-row-hint { outline: 2px dashed #9cc1ff; outline-offset: 2px; }
+  .copy-field-hint { box-shadow: inset 0 0 0 2px #9cc1ff; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -187,16 +192,20 @@
       for(let col=0; col<5; col++){
         const cell = document.createElement('div');
         cell.className = 'cell';
+        cell.dataset.row = row;
+        cell.dataset.col = col;
 
         const job = document.createElement('textarea');
         job.className = 'job-input';
         job.rows = 2;
         job.placeholder = (col===0 ? 'Job' : '');
+        job.dataset.row = row; job.dataset.col = col; job.dataset.field='job';
         cell.appendChild(job);
 
         const helper = document.createElement('input');
         helper.className = 'helper-input';
         helper.placeholder = (col===0 ? 'Helper' : '');
+        helper.dataset.row = row; helper.dataset.col = col; helper.dataset.field='helper';
         cell.appendChild(helper);
 
         const pto = document.createElement('input');
@@ -219,18 +228,15 @@
 
   /* ---------------- Clear/Collect/Apply ---------------- */
   function clearWeekGrid(){
-    // clear text explicitly
     grid.querySelectorAll('.cell .job-input').forEach(el => el.value='');
     grid.querySelectorAll('.cell .helper-input').forEach(el => el.value='');
-    // clear checks
     grid.querySelectorAll('.cell .pto-box, .cell .helper-pto-box').forEach(cb => {
       const wasLead = cb.classList.contains('pto-box') && cb.checked;
       cb.checked=false;
-      if (wasLead) cb.dispatchEvent(new Event('change',{bubbles:true})); // removes red highlight
+      if (wasLead) cb.dispatchEvent(new Event('change',{bubbles:true}));
     });
   }
 
-  // FULL snapshot (includes blanks) so clearing overwrites server values
   function collectWeekFull(){
     const jobs   = Array.from(grid.querySelectorAll('.job-input'));
     const helps  = Array.from(grid.querySelectorAll('.helper-input'));
@@ -296,7 +302,7 @@
   async function apiSaveWeek(key, data){
     const r = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ weekKey:key, data })  // send FULL snapshot
+      body: JSON.stringify({ weekKey:key, data })
     });
     const t = await r.text().catch(()=> ''); addLog('save-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
@@ -403,16 +409,110 @@
 
   document.getElementById('resetBtn').onclick    = async ()=>{
     hideCalendar();
-    clearWeekGrid();                                // clear UI immediately
-    await apiWipeWeek(state.key());                 // erase on server
-    await apiSaveWeek(state.key(), collectWeekFull()); // save empty snapshot (blanks + false)
-    await loadWeekFor(state.monday);                // reload clean slate
+    clearWeekGrid();
+    await apiWipeWeek(state.key());
+    await apiSaveWeek(state.key(), collectWeekFull());
+    await loadWeekFor(state.monday);
   };
   document.getElementById('printBtn').onclick    = ()=> window.print();
 
+  /* ---------------- Tap‑copy & Drag‑paste (row only) ---------------- */
+  let copyActive = false;
+  let copyField = null;    // 'job' | 'helper'
+  let copyValue = '';
+  let copyRow = -1;
+  let visitedCols = new Set();
+  let lastTapTime = 0;
+  let touchId = null;
+
+  function startCopyMode(fromEl){
+    copyActive = true;
+    copyField = fromEl.dataset.field; // 'job' or 'helper'
+    copyValue = fromEl.value || '';
+    copyRow   = parseInt(fromEl.dataset.row,10);
+    visitedCols.clear();
+
+    // visual hints on the row
+    grid.querySelectorAll(`.cell[data-row="${copyRow}"]`).forEach(c=> c.classList.add('copy-row-hint'));
+    fromEl.classList.add('copy-field-hint');
+
+    addLog('copy-start', {row: copyRow, field: copyField, value: copyValue});
+  }
+  function endCopyMode(){
+    copyActive = false; copyField=null; copyValue=''; copyRow=-1; visitedCols.clear(); touchId=null;
+    grid.querySelectorAll('.copy-row-hint').forEach(c=> c.classList.remove('copy-row-hint'));
+    grid.querySelectorAll('.copy-field-hint').forEach(el=> el.classList.remove('copy-field-hint'));
+    addLog('copy-end');
+  }
+
+  function maybePasteAtPoint(x, y){
+    if (!copyActive) return;
+    const el = document.elementFromPoint(x, y);
+    if (!el) return;
+    // find the cell under the point
+    const cell = el.closest?.('.cell');
+    if (!cell) return;
+    const row = parseInt(cell.dataset.row,10);
+    if (row !== copyRow) return; // straight across only
+
+    const col = parseInt(cell.dataset.col,10);
+    if (visitedCols.has(col)) return; // already applied
+    visitedCols.add(col);
+
+    // target input in that cell for the same field
+    const target = cell.querySelector(copyField === 'job' ? '.job-input' : '.helper-input');
+    if (target){
+      target.value = copyValue;
+      // trigger input so autosave captures it
+      target.dispatchEvent(new Event('input', {bubbles:true}));
+      addLog('copy-paste', {row, col, field: copyField});
+    }
+  }
+
+  // Touch (iPad / Pencil)
+  grid.addEventListener('touchstart', (e)=>{
+    const t = e.target;
+    if (!(t.classList.contains('job-input') || t.classList.contains('helper-input'))) return;
+    const now = Date.now();
+    if (now - lastTapTime < 300){ // double-tap
+      e.preventDefault();
+      startCopyMode(t);
+      const touch = e.changedTouches[0];
+      touchId = touch.identifier;
+      visitedCols.add(parseInt(t.dataset.col,10)); // include starting col
+    }
+    lastTapTime = now;
+  }, {passive:false});
+
+  grid.addEventListener('touchmove', (e)=>{
+    if (!copyActive) return;
+    const touch = Array.from(e.changedTouches).find(x=> x.identifier===touchId) || e.touches[0];
+    if (!touch) return;
+    maybePasteAtPoint(touch.clientX, touch.clientY);
+  }, {passive:true});
+
+  const endTouch = ()=> { if (copyActive) endCopyMode(); };
+  grid.addEventListener('touchend', endTouch, {passive:true});
+  grid.addEventListener('touchcancel', endTouch, {passive:true});
+
+  // Mouse support (desktop testing)
+  grid.addEventListener('dblclick', (e)=>{
+    const t = e.target;
+    if (t.classList.contains('job-input') || t.classList.contains('helper-input')){
+      startCopyMode(t);
+      visitedCols.add(parseInt(t.dataset.col,10));
+    }
+  });
+  document.addEventListener('mousemove', (e)=>{
+    if (copyActive) maybePasteAtPoint(e.clientX, e.clientY);
+  });
+  document.addEventListener('mouseup', ()=>{
+    if (copyActive) endCopyMode();
+  });
+
   /* ---------------- Load/Refresh ---------------- */
   async function loadWeekFor(monday){
-    clearWeekGrid();                                // ensure previous UI is wiped
+    clearWeekGrid();
     const data = await apiLoadWeek(isoWeekKeyFromDate(monday));
     applyWeekData(data);
   }
