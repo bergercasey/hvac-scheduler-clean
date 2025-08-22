@@ -5,53 +5,29 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>HVAC Weekly Schedule</title>
 <style>
-/* job area */
-.job{
-  width:100%;
-  height:calc(2 * 20px + 2 * 6px + 4px); /* 2 lines + cushion */
-  border:1px solid #bbb;
-  border-radius:4px;
-  padding:6px 8px;
-  font-size:14px;
-  line-height:20px;
-  resize:none;
-  background:#fff;
-  box-sizing:border-box;
-}
+  :root{
+    /* Layout knobs */
+    --page-max: 1360px;     /* overall width */
+    --left-col: 190px;      /* crew lead column width */
 
-/* helper text */
-.helper{
-  width:100%;
-  height:30px;
-  border:1px solid #bbb;
-  border-radius:4px;
-  padding:6px 8px;
-  font-size:14px;
-  line-height:18px;
-  color:#0a84ff; /* blue for helper initials */
-  background:#fff;
-  box-sizing:border-box;
-}
+    /* Row/input sizes */
+    --cell-min-h: 74px;
+    --name-h: 30px;         /* Crew Lead & Apprentice heights */
+    --helper-h: 30px;
 
-/* PTO bubbles */
-.pto-bubble{
-  position:absolute;
-  width:20px; height:20px;
-  border:1px solid #bbb;
-  border-radius:4px;
-  display:flex; align-items:center; justify-content:center;
-  background:#fff;
-}
-.pto-bubble input{margin:0;}
+    /* exact 2-line job geometry (iPad Safari friendly) */
+    --job-line: 20px;       /* px line-height */
+    --job-vpad: 6px;        /* top/bottom padding */
+    --job-hpad: 8px;        /* left/right padding */
+    --job-height: calc(2*var(--job-line) + 2*var(--job-vpad) + 2px); /* +2px cushion helps tapping line 2 */
 
-/* crew top-right red */
-.pto-crew{ top:4px; right:4px; }
-.pto-crew input:checked{ accent-color:#c00; }
-
-/* helper bottom-right blue */
-.pto-helper{ bottom:4px; right:4px; }
-.pto-helper input:checked{ accent-color:#0a84ff; }
-
+    /* Colors */
+    --grid-border:#cfcfcf;
+    --hdr-bg:#f5f5f5;
+    --shade: rgba(255,0,0,0.10); /* helper PTO shading */
+    --blue:#0a84ff;  /* helper */
+    --red:#c00;      /* crew */
+  }
 
   html,body{background:#fff}
   body{font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;margin:0}
@@ -72,9 +48,10 @@
 
   /* grid */
   .grid{display:grid;grid-template-columns:var(--left-col) repeat(5,1fr);border:1px solid var(--grid-border)}
-  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);background:#fff;min-height:var(--cell-min-h)}
+  .leadcell,.cell{border-right:1px solid var(--grid-border);border-top:1px solid var(--grid-border);background:#fff;min-height:var(--cell-min-h);position:relative}
   .grid>:nth-child(-n+6){border-top:0}
   .grid>:nth-child(6n){border-right:0}
+  .cell{overflow:hidden}
 
   /* left column */
   .leadcell{padding:6px;display:flex;flex-direction:column;gap:6px}
@@ -83,37 +60,52 @@
     border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;line-height:18px;background:#fff;box-sizing:border-box
   }
 
-  /* ===== Day cell: 2-column layout ===== */
-  .cell{padding:0;overflow:hidden}
+  /* day cell content */
   .cell-inner{
-    display:grid; grid-template-columns: 1fr 24px; /* ← 24px PTO rail */
-    column-gap:6px; height:100%; padding:6px; box-sizing:border-box; position:relative
+    /* Reserve space for the corner bubbles so they never cover inputs */
+    padding:6px 34px 30px 6px; /* top | right | bottom | left */
+    box-sizing:border-box;
+    height:100%;
   }
-  .cell-main{display:flex;flex-direction:column;gap:4px}
-  .cell-pto{display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:2px 0}
-
-  /* inputs */
   .job{
-    width:100%; height:var(--job-height);
+    width:100%;
+    height:var(--job-height);
     border:1px solid #bbb;border-radius:4px;
-    padding:var(--job-vpad) var(--job-hpad); box-sizing:border-box;
-    font-size:14px; line-height:var(--job-line); resize:none; background:#fff
+    padding:var(--job-vpad) var(--job-hpad);
+    font-size:14px; line-height:var(--job-line);
+    resize:none; background:#fff; box-sizing:border-box; display:block;
   }
   .job:focus{outline:2px solid rgba(0,0,0,0.08)}
   .helper{
     width:100%; height:var(--helper-h);
     border:1px solid #bbb;border-radius:4px;
-    padding:4px 8px; box-sizing:border-box;
-    font-size:14px; background:#fff; color:var(--blue)
+    padding:6px 8px; box-sizing:border-box;
+    font-size:14px; line-height:18px;
+    color:var(--blue); background:#fff;
+    margin-top:4px;
   }
   .helper::placeholder{opacity:.7;color:#7a7a7a}
 
-  /* PTO checkboxes (native, colored) */
-  .cell-pto input{width:16px;height:16px}
-  .cell-pto .helper-pto{accent-color:var(--blue)} /* top */
-  .cell-pto .crew-pto{accent-color:var(--red)}   /* bottom */
+  /* PTO bubbles (clean capsules in corners) */
+  .pto-bubble{
+    position:absolute;
+    width:20px; height:20px;
+    border:1px solid #bbb;
+    border-radius:4px;
+    display:flex; align-items:center; justify-content:center;
+    background:#fff;
+  }
+  .pto-bubble input{margin:0; width:16px; height:16px}
 
-  /* Helper-PTO shading */
+  /* CREW = top-right (red) */
+  .pto-crew{ top:4px; right:4px; }
+  .pto-crew input{ accent-color: var(--red); }
+
+  /* HELPER = bottom-right (blue) */
+  .pto-helper{ bottom:4px; right:4px; }
+  .pto-helper input{ accent-color: var(--blue); }
+
+  /* helper-PTO shading across the cell */
   .shade{background:var(--shade)}
 
   /* bottom: Floaters left / To‑dos right */
@@ -128,7 +120,7 @@
   .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--red)}
   .floater-assigned{background:var(--shade);border-radius:4px;padding:2px}
 
-  /* log + modal (unchanged) */
+  /* log + modal */
   .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden;background:#fff}
   .log h3{margin:0;padding:8px 10px;background:var(--hdr-bg);font-size:14px}
   .logpre{margin:0;padding:8px 10px;height:140px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#fff}
@@ -185,16 +177,19 @@
 
 <script>
 (() => {
+  /* ===== CONFIG ===== */
   const CREWS=12, DAYS=5;
-  const STORAGE_MODE='local';
-  const API_BASE='/.netlify/functions';
+  const STORAGE_MODE='local';             // 'local' now, switch to 'api' later
+  const API_BASE='/.netlify/functions';   // change if needed
   const LOG=(tag,p)=>{const L=document.getElementById('log');if(!L)return;const t=new Date().toLocaleTimeString();L.textContent+=`[${t}] ${tag} ${p?JSON.stringify(p):""}\n`;L.scrollTop=L.scrollHeight};
 
+  /* ===== STATE ===== */
   let currentMonday=getMonday(new Date());
   let weekData=blankWeek();
   let persistent=blankPersistent();
   let savingWeek=false,savingPersistent=false;
 
+  /* ===== UTIL ===== */
   function getMonday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const day=x.getDay();x.setDate(x.getDate()+(day===0?-6:1-day));x.setHours(0,0,0,0);return x}
   function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
   function fmtDay(date){return `${date.toLocaleDateString(undefined,{weekday:'short'})} ${(date.getMonth()+1)}/${date.getDate()}`}
@@ -209,14 +204,13 @@
   function blankPersistent(){return{crewLeads:Array(CREWS).fill(""),apprentices:Array(CREWS).fill(""),floaters:Array(10).fill(""),todos:Array(12).fill("")}}
   const debounce=(fn,ms=200)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
 
+  /* ===== RENDER ===== */
   function renderHeader(){for(let c=0;c<DAYS;c++){document.getElementById('d'+c).textContent=fmtDay(addDays(currentMonday,c))}}
 
   function makeCell(r,c){
     const cell=document.createElement('div'); cell.className='cell'; cell.dataset.r=r; cell.dataset.c=c;
 
     const inner=document.createElement('div'); inner.className='cell-inner';
-    const main=document.createElement('div'); main.className='cell-main';
-    const rail=document.createElement('div'); rail.className='cell-pto';
 
     const job=document.createElement('textarea');
     job.className='job'; job.placeholder=(c===0?'Job':''); job.value=weekData.jobs[r][c]||"";
@@ -226,20 +220,22 @@
     helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||"";
     helper.addEventListener('input',(e)=>{weekData.helpers[r][c]=e.target.value; LOG('helper',{r,c,val:e.target.value}); saveWeekDeb();});
 
-    /* PTOs in the dedicated rail (no overlap) */
-    const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.className='helper-pto'; hcb.checked=!!weekData.helperPTO[r][c];
-    hcb.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
-    const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.className='crew-pto'; ccb.checked=!!weekData.crewPTO[r][c];
-    ccb.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
+    // PTO bubbles (no overlap because of reserved padding)
+    const crewB=document.createElement('label'); crewB.className='pto-bubble pto-crew';
+    const crewCB=document.createElement('input'); crewCB.type='checkbox'; crewCB.checked=!!weekData.crewPTO[r][c];
+    crewCB.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
+    crewB.appendChild(crewCB);
 
-    /* Build */
-    main.appendChild(job);
-    main.appendChild(helper);
-    rail.appendChild(hcb);       /* top (blue) */
-    rail.appendChild(ccb);       /* bottom (red) */
-    inner.appendChild(main);
-    inner.appendChild(rail);
+    const helpB=document.createElement('label'); helpB.className='pto-bubble pto-helper';
+    const helpCB=document.createElement('input'); helpCB.type='checkbox'; helpCB.checked=!!weekData.helperPTO[r][c];
+    helpCB.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
+    helpB.appendChild(helpCB);
+
+    inner.appendChild(job);
+    inner.appendChild(helper);
     cell.appendChild(inner);
+    cell.appendChild(crewB);   // top-right (red)
+    cell.appendChild(helpB);   // bottom-right (blue)
     return cell;
   }
 
@@ -275,6 +271,7 @@
     }
   }
 
+  /* ===== SAVE/LOAD ===== */
   const saveWeekDeb=debounce(saveWeek,200);
   const savePersistentDeb=debounce(savePersistent,200);
 
@@ -337,6 +334,7 @@
     savingPersistent=false;
   }
 
+  /* ===== NAV + CALENDAR ===== */
   function goToMonday(d){
     currentMonday=getMonday(d);
     renderHeader();
@@ -365,6 +363,7 @@
     backdrop.style.display='none';
   });
 
+  /* ===== INIT ===== */
   window.addEventListener('DOMContentLoaded', async ()=>{
     renderHeader(); renderGrid(); renderBottom();
     await loadPersistent(); await loadWeek();
