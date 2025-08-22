@@ -29,13 +29,14 @@
   .job-input { resize: none; line-height:1.25; }
   .helper-input { color: #0b62ff; }
 
-  /* Important for Pencil drag */
-  .job-input, .helper-input { touch-action: none; -webkit-user-select: none; user-select: none; }
-
   .pto-box, .helper-pto-box { position:absolute; width:14px; height:14px; cursor:pointer; appearance:auto; -webkit-appearance:auto; }
   .pto-box         { top:2px;  right:2px;  accent-color: red; }      /* LEAD PTO (shades cell) */
   .helper-pto-box  { bottom:2px; right:2px; accent-color: #0b62ff; } /* HELPER PTO is BLUE, no shading */
   .highlight-red { background-color: #ffe1e1; } /* applied by LEAD PTO only */
+
+  /* Copy mode visuals */
+  .copy-row-hint { outline: 2px dashed #9cc1ff; outline-offset: 2px; }
+  .copy-field-hint { box-shadow: inset 0 0 0 2px #9cc1ff; border-radius: 4px; }
 
   /* Bottom sections */
   #bottomSection { display:flex; gap:10px; margin:20px auto 0; max-width:1000px; }
@@ -56,10 +57,6 @@
   #logWrap { margin-top:18px; }
   #logWrap h3 { margin: 6px 0; font-size: 14px; }
   #changeLog { height:160px; overflow:auto; border:1px solid #ddd; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:8px; background:#fafafa; white-space:pre-wrap; }
-
-  /* Copy mode visuals */
-  .copy-row-hint { outline: 2px dashed #9cc1ff; outline-offset: 2px; }
-  .copy-field-hint { box-shadow: inset 0 0 0 2px #9cc1ff; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -128,15 +125,19 @@
   </div>
 
 <script>
+/* =========================
+   HVAC — controller (GOOD GRID + WORKING SAVE + PENCIL-FRIENDLY COPY)
+   ========================= */
+
 (function(){
   /* ---------------- Logger ---------------- */
   const logBox = document.getElementById('changeLog');
   const ts = () => new Date().toLocaleTimeString();
   function addLog(msg, obj){
     const line = '['+ts()+'] '+msg+(obj? ' '+JSON.stringify(obj):'');
-    logBox.textContent += (logBox.textContent ? '\n' : '') + line;
+    logBox.textContent += (logBox.textContent ? '\\n' : '') + line;
     logBox.scrollTop = logBox.scrollHeight;
-    console.log(line);
+    try{ console.log(line); }catch{}
   }
   window.addLog = addLog;
 
@@ -183,6 +184,7 @@
   function createGrid(){
     grid.innerHTML = '';
     for(let row=0; row<12; row++){
+      // Crew Lead / Apprentice (persistent)
       const crew = document.createElement('div');
       crew.className = 'crew-label';
       crew.setAttribute('data-persistent','1');
@@ -192,6 +194,7 @@
       `;
       grid.appendChild(crew);
 
+      // 5 day cells
       for(let col=0; col<5; col++){
         const cell = document.createElement('div');
         cell.className = 'cell';
@@ -231,15 +234,18 @@
 
   /* ---------------- Clear/Collect/Apply ---------------- */
   function clearWeekGrid(){
+    // clear text explicitly
     grid.querySelectorAll('.cell .job-input').forEach(el => el.value='');
     grid.querySelectorAll('.cell .helper-input').forEach(el => el.value='');
+    // clear checks
     grid.querySelectorAll('.cell .pto-box, .cell .helper-pto-box').forEach(cb => {
       const wasLead = cb.classList.contains('pto-box') && cb.checked;
       cb.checked=false;
-      if (wasLead) cb.dispatchEvent(new Event('change',{bubbles:true}));
+      if (wasLead) cb.dispatchEvent(new Event('change',{bubbles:true})); // removes red highlight
     });
   }
 
+  // FULL snapshot (includes blanks) so clearing overwrites server values
   function collectWeekFull(){
     const jobs   = Array.from(grid.querySelectorAll('.job-input'));
     const helps  = Array.from(grid.querySelectorAll('.helper-input'));
@@ -305,7 +311,7 @@
   async function apiSaveWeek(key, data){
     const r = await fetch('/.netlify/functions/save-week', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ weekKey:key, data })
+      body: JSON.stringify({ weekKey:key, data })  // send FULL snapshot
     });
     const t = await r.text().catch(()=> ''); addLog('save-week', {status:r.status, ok:r.ok, body:t.slice(0,140)});
   }
@@ -397,7 +403,7 @@
       td.onclick = ()=>{
         const [Y,M,D] = td.getAttribute('data-ymd').split('-').map(Number);
         hvacSetWeek(new Date(Y, M-1, D));
-        hideCalendar();
+        hideCalendar();                       // CLOSE on selection
       };
     });
   }
@@ -412,22 +418,27 @@
 
   document.getElementById('resetBtn').onclick    = async ()=>{
     hideCalendar();
-    clearWeekGrid();
-    await apiWipeWeek(state.key());
-    await apiSaveWeek(state.key(), collectWeekFull());
-    await loadWeekFor(state.monday);
+    clearWeekGrid();                                // clear UI immediately
+    await apiWipeWeek(state.key());                 // erase on server
+    await apiSaveWeek(state.key(), collectWeekFull()); // save empty snapshot (blanks + false)
+    await loadWeekFor(state.monday);                // reload clean slate
   };
   document.getElementById('printBtn').onclick    = ()=> window.print();
 
-  /* ---------------- Tap‑copy & Drag‑paste (row only) — Finger + Pencil ---------------- */
+  /* ---------------- Tap‑copy & Drag‑paste (row only) ----------------
+     Works with Apple Pencil and finger using Pointer Events.
+     Double‑tap on Job/Helper to start; drag across SAME ROW to paste into cells passed.
+  ------------------------------------------------------------------- */
   let copyActive = false;
   let copyField = null;    // 'job' | 'helper'
   let copyValue = '';
   let copyRow = -1;
   let visitedCols = new Set();
-  let lastTapTime = 0;
-  let touchId = null;      // for touch
-  let pointerId = null;    // for pencil/mouse
+  let lastPointerDown = 0;
+  let sourceEl = null;
+
+  // enable pointer events on inputs
+  const pointerOpts = {passive:false};
 
   function startCopyMode(fromEl){
     copyActive = true;
@@ -435,87 +446,72 @@
     copyValue = fromEl.value || '';
     copyRow   = parseInt(fromEl.dataset.row,10);
     visitedCols.clear();
+    sourceEl = fromEl;
 
+    // visuals
     grid.querySelectorAll(`.cell[data-row="${copyRow}"]`).forEach(c=> c.classList.add('copy-row-hint'));
     fromEl.classList.add('copy-field-hint');
 
     addLog('copy-start', {row: copyRow, field: copyField, value: copyValue});
   }
   function endCopyMode(){
-    copyActive = false; copyField=null; copyValue=''; copyRow=-1; visitedCols.clear(); touchId=null; pointerId=null;
+    copyActive = false; copyField=null; copyValue=''; copyRow=-1; visitedCols.clear();
     grid.querySelectorAll('.copy-row-hint').forEach(c=> c.classList.remove('copy-row-hint'));
     grid.querySelectorAll('.copy-field-hint').forEach(el=> el.classList.remove('copy-field-hint'));
+    sourceEl = null;
     addLog('copy-end');
   }
-  function maybePasteAtPoint(x, y){
+
+  function pasteAtPoint(clientX, clientY){
     if (!copyActive) return;
-    const el = document.elementFromPoint(x, y);
+    const el = document.elementFromPoint(clientX, clientY);
     if (!el) return;
     const cell = el.closest?.('.cell');
     if (!cell) return;
     const row = parseInt(cell.dataset.row,10);
     if (row !== copyRow) return; // straight across only
+
     const col = parseInt(cell.dataset.col,10);
-    if (visitedCols.has(col)) return;
+    if (visitedCols.has(col)) return; // already applied
     visitedCols.add(col);
 
     const target = cell.querySelector(copyField === 'job' ? '.job-input' : '.helper-input');
     if (target){
       target.value = copyValue;
-      target.dispatchEvent(new Event('input', {bubbles:true}));
+      target.dispatchEvent(new Event('input', {bubbles:true})); // autosave catch
       addLog('copy-paste', {row, col, field: copyField});
     }
   }
 
-  /* ----- Touch (finger) double‑tap + drag ----- */
-  grid.addEventListener('touchstart', (e)=>{
-    const t = e.target;
-    if (!(t.classList.contains('job-input') || t.classList.contains('helper-input'))) return;
-    const now = Date.now();
-    if (now - lastTapTime < 300){ // double-tap
-      e.preventDefault(); // important to stop text selection + scroll
-      startCopyMode(t);
-      const touch = e.changedTouches[0];
-      touchId = touch.identifier;
-      visitedCols.add(parseInt(t.dataset.col,10)); // include starting col
-    }
-    lastTapTime = now;
-  }, {passive:false});
+  function attachCopyHandlers(){
+    // delegate to grid for pointer events
+    grid.addEventListener('pointerdown', (e)=>{
+      const t = e.target;
+      if (!(t.classList.contains('job-input') || t.classList.contains('helper-input'))) return;
+      const now = Date.now();
+      // treat as double-tap/double-click if rapid second press
+      if (now - lastPointerDown < 350){
+        e.preventDefault();
+        startCopyMode(t);
+        const col = parseInt(t.dataset.col,10);
+        visitedCols.add(col); // include starting col
+      }
+      lastPointerDown = now;
+    }, pointerOpts);
 
-  grid.addEventListener('touchmove', (e)=>{
-    if (!copyActive) return;
-    const touch = Array.from(e.changedTouches).find(x=> x.identifier===touchId) || e.touches[0];
-    if (!touch) return;
-    maybePasteAtPoint(touch.clientX, touch.clientY);
-  }, {passive:true});
+    // drag while active
+    grid.addEventListener('pointermove', (e)=>{
+      if (!copyActive) return;
+      pasteAtPoint(e.clientX, e.clientY);
+    }, {passive:true});
 
-  const endTouch = ()=> { if (copyActive) endCopyMode(); };
-  grid.addEventListener('touchend', endTouch, {passive:true});
-  grid.addEventListener('touchcancel', endTouch, {passive:true});
-
-  /* ----- Pointer (Apple Pencil / mouse) double‑tap + drag ----- */
-  grid.addEventListener('pointerdown', (e)=>{
-    const t = e.target;
-    if (!(t.classList.contains('job-input') || t.classList.contains('helper-input'))) return;
-    const now = Date.now();
-    if (now - lastTapTime < 300){ // double-tap (pencil/mouse)
-      e.preventDefault();
-      startCopyMode(t);
-      pointerId = e.pointerId;
-      visitedCols.add(parseInt(t.dataset.col,10));
-    }
-    lastTapTime = now;
-  }, {passive:false});
-
-  grid.addEventListener('pointermove', (e)=>{
-    if (!copyActive || (pointerId !== null && e.pointerId !== pointerId)) return;
-    maybePasteAtPoint(e.clientX, e.clientY);
-  }, {passive:true});
-
-  const endPointer = (e)=>{ if (copyActive && (pointerId===null || e.pointerId===pointerId)) endCopyMode(); };
-  grid.addEventListener('pointerup', endPointer, {passive:true});
-  grid.addEventListener('pointercancel', endPointer, {passive:true});
-  grid.addEventListener('lostpointercapture', endPointer, {passive:true});
+    // end on up/cancel/leave window
+    const endAll = ()=> { if (copyActive) endCopyMode(); };
+    grid.addEventListener('pointerup', endAll, {passive:true});
+    grid.addEventListener('pointercancel', endAll, {passive:true});
+    window.addEventListener('blur', endAll);
+    window.addEventListener('keydown', (e)=>{ if (e.key==='Escape') endCopyMode(); });
+  }
 
   /* ---------------- Load/Refresh ---------------- */
   async function loadWeekFor(monday){
@@ -524,4 +520,17 @@
     applyWeekData(data);
   }
 
-  /* ---------------- Init ----------------
+  /* ---------------- Init ---------------- */
+  (function init(){
+    renderHeader(state.monday);
+    createGrid();
+    attachCopyHandlers();
+    apiLoadWeek(state.key()).then(applyWeekData);
+    apiLoadPersistent();
+  })();
+
+})();
+</script>
+
+</body>
+</html>
