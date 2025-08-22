@@ -6,17 +6,17 @@
 <title>HVAC Weekly Schedule</title>
 <style>
   :root{
-    /* Tweak these to taste */
-    --page-max: 1240px;        /* ⬅ wider overall */
-    --left-col: 180px;         /* ⬅ wider crew column */
-    --cell-min-h: 72px;
-    --job-min-h: 38px;
-    --helper-h: 26px;
+    /* Layout knobs */
+    --page-max: 1360px;       /* ⬅ wider overall to reduce side waste */
+    --left-col: 190px;        /* ⬅ a touch wider for names */
+    --cell-min-h: 78px;       /* row height */
+    --job-min-h: 46px;        /* solid 2‑line job area */
+    --helper-h: 30px;         /* match lead height feel */
     --grid-border:#cfcfcf;
     --hdr-bg:#f5f5f5;
     --light-red: rgba(255,0,0,0.10);
-    --blue: #0a84ff;           /* iOS blue */
-    --red:  #c00;
+    --blue: #0a84ff;          /* iOS blue */
+    --red:  #c00;             /* crew PTO/red */
   }
 
   html,body{background:#fff}
@@ -42,19 +42,37 @@
   .grid>:nth-child(-n+6){border-top:0}
   .grid>:nth-child(6n){border-right:0}
 
+  /* left column */
   .leadcell{display:flex;flex-direction:column;gap:6px}
-  .lead-input,.apprentice-input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
-  .apprentice-input{height:28px}
+  .lead-input,.apprentice-input{
+    width:100%;border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;line-height:18px;height:30px;background:#fff
+  }
 
-  .job{width:100%;min-height:var(--job-min-h);max-height:54px;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;resize:vertical;background:#fff}
-  .helper{width:100%;height:var(--helper-h);border:1px solid #bbb;border-radius:4px;padding:4px 6px;font-size:14px;margin-top:4px;background:#fff}
-  .helper::placeholder{opacity:.7}
+  /* day cells */
+  .job{
+    width:100%;
+    min-height:var(--job-min-h);
+    max-height:64px;
+    border:1px solid #bbb;border-radius:4px;
+    padding:6px 30px 6px 8px;  /* ⬅ extra right padding so PTOs don’t overlap */
+    font-size:14px;line-height:1.25;
+    resize:vertical;background:#fff
+  }
+  .helper{
+    width:100%;
+    height:var(--helper-h);
+    border:1px solid #bbb;border-radius:4px;
+    padding:4px 30px 4px 8px;  /* ⬅ extra right padding */
+    font-size:14px;margin-top:4px;background:#fff;
+    color:var(--blue);         /* ⬅ helper text is blue */
+  }
+  .helper::placeholder{opacity:.7;color:#7a7a7a}
 
-  /* PTO: helper checkbox (top-right, blue), crew square (bottom-right, red) — no labels */
+  /* PTOs: helper = blue top‑right, crew = red square bottom‑right (no labels) */
   .pto-top{position:absolute;top:6px;right:6px}
-  .pto-top input{width:14px;height:14px;accent-color:var(--blue)} /* ⬅ blue helper PTO */
+  .pto-top input{width:14px;height:14px;accent-color:var(--blue)} /* helper PTO = blue */
   .pto-square{position:absolute;right:6px;bottom:6px;width:16px;height:16px;border:1px solid #900;border-radius:3px;display:flex;align-items:center;justify-content:center}
-  .pto-square input{width:14px;height:14px;margin:0;accent-color:var(--red)}          /* ⬅ red crew PTO */
+  .pto-square input{width:14px;height:14px;margin:0;accent-color:var(--red)}        /* crew PTO = red */
   .shade{background:var(--light-red)}
 
   /* bottom: Floaters (25%) LEFT, To‑dos (75%) RIGHT */
@@ -63,12 +81,13 @@
   .todo{flex:3;border:1px solid var(--grid-border);border-radius:6px;padding:10px;background:#fff}
   .section-title{font-weight:600;margin-bottom:6px}
   .todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .todo-grid input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
+  .todo-grid input{width:100%;border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;background:#fff}
   .floater-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-  .floater-row input[type="text"]{flex:1;border:1px solid #bbb;border-radius:4px;padding:6px;font-size:14px;background:#fff}
+  .floater-row input[type="text"]{flex:1;border:1px solid #bbb;border-radius:4px;padding:6px 8px;font-size:14px;background:#fff}
   .floater-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--red)}
   .floater-assigned{background:var(--light-red);border-radius:4px;padding:2px}
 
+  /* log */
   .log{margin-top:12px;border:1px solid var(--grid-border);border-radius:6px;overflow:hidden;background:#fff}
   .log h3{margin:0;padding:8px 10px;background:var(--hdr-bg);font-size:14px}
   .logpre{margin:0;padding:8px 10px;height:140px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#fff}
@@ -100,7 +119,6 @@
 
   <div class="grid" id="grid"></div>
 
-  <!-- ⬇ Flipped: Floaters LEFT, To‑dos RIGHT -->
   <div class="bottom-wrap">
     <div class="floaters">
       <div class="section-title">Floaters (10)</div>
@@ -165,13 +183,13 @@
     helper.className='helper'; helper.placeholder=(c===0?'Helper':''); helper.value=weekData.helpers[r][c]||"";
     helper.addEventListener('input',(e)=>{weekData.helpers[r][c]=e.target.value; LOG('helper',{r,c,val:e.target.value}); saveWeekDeb();});
 
-    // Helper PTO (top-right) — NO TEXT LABEL
+    // Helper PTO (top-right, BLUE)
     const top=document.createElement('div'); top.className='pto-top';
     const hcb=document.createElement('input'); hcb.type='checkbox'; hcb.checked=!!weekData.helperPTO[r][c];
     hcb.addEventListener('change',(e)=>{weekData.helperPTO[r][c]=e.target.checked; cell.classList.toggle('shade',e.target.checked); LOG('pto-helper',{r,c,checked:e.target.checked}); saveWeekDeb();});
     top.appendChild(hcb);
 
-    // Crew PTO (bottom-right red square)
+    // Crew PTO (bottom-right, RED square)
     const sq=document.createElement('div'); sq.className='pto-square';
     const ccb=document.createElement('input'); ccb.type='checkbox'; ccb.checked=!!weekData.crewPTO[r][c];
     ccb.addEventListener('change',(e)=>{weekData.crewPTO[r][c]=e.target.checked; LOG('pto-crew',{r,c,checked:e.target.checked}); saveWeekDeb();});
